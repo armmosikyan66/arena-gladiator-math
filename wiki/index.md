@@ -4,7 +4,7 @@ tags: [meta]
 updated: 2026-08-25
 source_count: 3
 page_count: 12
-last_change: 2026-08-25 client Play applies play.balance; keno single-shot EndRound.
+last_change: 2026-08-25 luma-keno Off vs Earn (80 modes; bonuses only on Earn).
 ---
 
 # Math SDK Wiki
@@ -39,7 +39,7 @@ _Vendor and external docs, summarized — not copied._
 
 - [[codebase/sdk-layout]] — `src/`, `games/`, outputs, what to edit.
 - [[codebase/gladiator-tower]] — Session climb math, modes, publish pipeline.
-- [[codebase/luma-keno]] — Hit-count keno, 0.950 RTP all modes; web Play applies `play.balance`.
+- [[codebase/luma-keno]] — Hit-count keno, 80 Off/Earn modes at 0.950 RTP; web Play applies `play.balance`.
 
 ## Domain
 

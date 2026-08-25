@@ -67,7 +67,7 @@ and run the Rust optimizer — that destroys exact weights.
    Consistency** is **0.50pp** (binding). Local `rgs_verification` only
    warns at **5pp**. Design advertised tables to one target. pick_1 on
    the 0.1× lattice is 0.950 or 0.975; 0.975 busts the 0.967 cap, so
-   luma-keno targets **0.950 on all 40 modes**. Do not split miss weight
+   luma-keno targets **0.950 on all 80 modes** (40 Off + 40 Earn). Do not split miss weight
    to fake a higher RTP (0.6× vs 0.7× fails Base Mode STD).
 8. **3-Star envelope (default).** High-risk `pick_10` is the binding mode.
    Cap the top prize from probability, not from a marketing max. Fail
@@ -167,8 +167,36 @@ and pays two prizes for one miss). Advertised rows: low 0.5/2.3 (std
 
 **Dashboard gates:** hit rate ≥ 2%; Cross-Mode RTP ≤ **0.50pp**; per-mode
 RTP ≤ 0.967; Base Mode STD ≥ **0.60** (leave margin — 0.606 displays as
-0.60 and fails). All 40 modes target **0.950**. Treat verifier warnings
+0.60 and fails). All 80 modes target **0.950**. Treat verifier warnings
 as failures.
+
+**Off vs Earn (80 modes, both `cost=1.0`, not buybonus).** Sidebar **Off**
+plays `{risk}_pick_{k}` — table only, criteria `hits_{h}`, `num_sim_args`
+`k+1`, weights `C(10,h)·C(30,k-h)`. Certified `paytables.json["risks"]`.
+`kenoStart.lumenMarked=false`. No extras, no Lumen multiplier.
+
+Sidebar **Earn** plays `{risk}_pick_{k}_earn`. Separate chart
+`paytables.json["earn"]` solved so Lumen + extras + Pulse settle at ~0.950.
+Always one of the main 10 is marked. Weight
+`C(10,h)·C(30,k-h)·(h if lumenHit else 10-h)` × extra-open/pair factors
+× Pulse on/off (10% / 90%).
+`kenoStart.lumenMarked` / `lumenBoost` / `pulseBoost`. `kenoCatch.lumenHit` /
+`lumenBoost` / `pulse`. Frontend reconstructs the marked number — do not
+put `lumenNumber` in the book.
+
+If Earn `lumenHit` and the table at **total** hits already pays, multiply
+by `LUMEN_BOOST`: classic/low/**medium ×2**, high ×5. Medium is ×2 (not
+×3) so Earn pick_1 stays on the 0.1× lattice inside 0.50pp of Off 0.950.
+Lumen does **not** rescue a 0× row.
+
+Then **Pulse ×2** on 10% of Earn books, also only on a paying table.
+
+Extras (Earn only): 0 or 2 from the remaining 30 (`lumen` / `nearMiss` /
+luck). Extra hits pay the Earn table, then Lumen, then Pulse.
+Buy is not applied. Criteria
+`hits_{h}_lumen_{0|1}_extra_{0|1}_{none|lumen|near|luck}_{eh}_pulse_{0|1}`.
+`num_sim_args` is `book_count_for_picks(k)` (pick_1=6, pick_5=52,
+pick_10=118). Cross-Mode is over all 80 published modes.
 
 Wiki: [[codebase/luma-keno]] in `math/wiki/`.
 
@@ -212,7 +240,8 @@ python3 ../.cursor/skills/keno-math/scripts/rtp.py path/to/paytable.json
 ```
 
 Debug: `compression=False`, `num_threads=1`. Production compression on.
-Sim count is `k+1` per mode (2 books for pick_1), not 100k.
+Off sim count is `k+1` per mode (2 books for pick_1). Earn is
+`book_count_for_picks(k)`, not 100k.
 
 ## Do / don't
 

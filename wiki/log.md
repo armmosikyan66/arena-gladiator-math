@@ -2,6 +2,36 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-08-25] feat | Earn Pulse ×2 (10%)
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno pulse criteria/weights, earn retune, web HUD/board rings only when booked
+- notes: Independent of extras. Does not rescue 0×. Off never rolls it. Earn tables re-solved to 0.950. pick_1 Earn books=6.
+
+## [2026-08-25] feat | Off vs Earn separated math (80 modes)
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno 80 BetModes, paytables.json earn, web Play `_earn` suffix, keno-math SKILL/events, wiki/domain/stake-engine-publish.md
+- notes: Sidebar Off keeps certified table-only 0.950 chart. Sidebar Earn is a separate chart with Lumen (medium ×2) + extras priced in. Pulse/Buy still unpublished. Cross-Mode over all 80 modes.
+
+## [2026-08-25] feat | Lumen multiplier (step 2)
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno settle_pay / lumenBoost events / LUT payouts, web reconstruct lumenBoost HUD, keno-math events.md
+- notes: Catching Lumen on a paying row ×2 classic/low, ×3 medium, ×5 high. Does not rescue 0×. RTP rises further until Step 8 retune. Pulse and Buy still unused.
+
+## [2026-08-25] feat | Extra lights (open + count as hits)
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno extras criteria/weights, kenoCatch extraHits, web reconstructExtras + bonus pause
+- notes: Extras 0 or 2 from lumen / nearMiss / luck. Total hits pay the table. Lumen multiplier, Pulse, Buy not applied. RTP will rise until Step 8 retune.
+
+## [2026-08-25] feat | Lumen mark step 1 (visual, no payout)
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno/ (criteria `hits_{h}_lumen_{0|1}`, kenoCatch.lumenHit, LUT × h or 10-h), web reconstructLumenNumber + board mark before first light, keno-math events.md
+- notes: P(lumenHit|hits=h)=h/10. pick_1 has 3 books, pick_10 has 20. Same paytable. Frontend shows marked number before reveal. Boost / extras / Pulse not applied.
+
 ## [2026-08-25] manual | Client Play wallet vs preview planRound
 
 - summary: wiki/codebase/luma-keno.md

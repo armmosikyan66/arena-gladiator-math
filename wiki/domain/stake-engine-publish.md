@@ -55,9 +55,11 @@ only warns about. Both failed Lumen Keno's first upload (2026-08-24):
 2. **Mode RTP spread.** Dashboard **Cross-Mode RTP Consistency** is **0.50pp**
    (binding). Local `rgs_verification` only warns at **5pp**. pick_1 on the
    0.1× grid is a 2-outcome lattice (RTP 0.950 or 0.975). 0.975 busts the
-   0.967 cap. luma-keno targets **0.950 on all 40 modes** (one multiplier
-   per hit). low_pick_1 is **0.5/2.3** so Base Mode STD (~0.78) clears the
-   0.60 floor with margin. Do not split miss weight. See
+   0.967 cap. luma-keno targets **0.950 on all 80 modes** (40 Off table-only
+   + 40 Earn with Lumen/extras). One multiplier per hit. low_pick_1 Off is
+   **0.5/2.3** so Base Mode STD (~0.78) clears the 0.60 floor with margin.
+   Earn uses a separate chart so bonuses do not inflate Off. Do not split
+   miss weight. See
    [[sources/keno-xtreme-analysis]] and [[codebase/luma-keno]].
 3. **Base Mode STD.** Floor is **0.60×** when cost=1. Dashboard failed
    `Value: 0.60x` / `Limit: = 0.60x` — treat as strict greater-than, and

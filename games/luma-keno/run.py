@@ -1,33 +1,31 @@
-"""Luma Keno pipeline. 40 modes (4 risks x 10 pick sizes), exact LUT weights.
+"""Luma Keno pipeline. 80 modes: Off table-only + Earn (Lumen/extras).
 
-The Rust optimizer is skipped on purpose: LUT weights are the true
-hypergeometric counts C(drawn, h) * C(pool - drawn, k - h) and payouts are the
-solved paytable values. Optimizing would destroy the certified odds.
+The Rust optimizer is skipped on purpose: Off LUT weights are exact
+hypergeometric hit counts. Earn weights also split Lumen slots, extra-open
+chances, and extra-pair counts. Payouts are the mode table, × Lumen on Earn.
 """
 
-from math import comb
 import json
 import os
 
 from game_config import GameConfig
 from gamestate import GameState
-from keno_pick_one import criteria_hits
+from keno_pick_one import (
+    base_hit_weight,
+    book_count_for_picks,
+    parse_mode_name,
+    parse_spin_criteria,
+    spin_weight,
+)
 from src.state.run_sims import create_books
 from src.write_data.write_configs import generate_configs
 
 
-def parse_mode(name: str) -> tuple[str, int]:
-    risk, pick = name.rsplit("_pick_", 1)
-    return risk, int(pick)
-
-
 def write_exact_lookup_tables(gamestate: GameState) -> None:
-    """Replace sim counts with hypergeometric weights. Skip the Rust optimizer."""
-    drawn = gamestate.config.keno_drawn
-    rest = gamestate.config.keno_pool - drawn
+    """Replace sim counts with exact keno weights. Skip the Rust optimizer."""
     for mode in gamestate.config.bet_modes:
         name = mode.get_name()
-        _, k = parse_mode(name)
+        risk, k, earn = parse_mode_name(name)
         base_lut = gamestate.output_files.get_final_lookup_name(name)
         opt_lut = gamestate.output_files.get_optimized_lookup_name(name)
         segmented = gamestate.output_files.get_final_segmented_name(name)
@@ -42,8 +40,11 @@ def write_exact_lookup_tables(gamestate: GameState) -> None:
         with open(segmented, encoding="UTF-8") as handle:
             for line in handle:
                 sim_id, criteria, *_ = line.strip().split(",")
-                hits = criteria_hits(criteria)
-                weight = comb(drawn, hits) * comb(rest, k - hits)
+                spin = parse_spin_criteria(criteria)
+                if earn:
+                    weight = spin_weight(k, spin, risk)
+                else:
+                    weight = base_hit_weight(k, spin.main_hits)
                 rows.append(f"{sim_id},{weight},{payouts[sim_id]}\n")
 
         text = "".join(rows)
@@ -72,11 +73,16 @@ def write_publish_index(gamestate: GameState) -> str:
 
 
 def print_mode_rtp_table(gamestate: GameState) -> None:
-    print(f"\n{'mode':>16} {'RTP':>8}   top prize")
+    print(f"\n{'mode':>22} {'RTP':>8}   top prize")
     for mode in gamestate.config.bet_modes:
-        risk, k = parse_mode(mode.get_name())
-        rtp = gamestate.mode_rtp(risk, k)
-        print(f"{mode.get_name():>16} {rtp:8.4f}   {gamestate.pay_for(risk, k, k):>9.1f}x")
+        risk, k, earn = parse_mode_name(mode.get_name())
+        rtp = gamestate.mode_rtp(risk, k, earn)
+        top = (
+            gamestate.settle_pay(risk, k, k, True, earn, True)
+            if earn
+            else gamestate.pay_for(risk, k, k, False)
+        )
+        print(f"{mode.get_name():>22} {rtp:8.4f}   {top:>9.1f}x")
 
 
 if __name__ == "__main__":
@@ -85,11 +91,11 @@ if __name__ == "__main__":
     compression = True
     profiling = False
 
-    num_sim_args = {
-        f"{risk}_pick_{k}": k + 1
-        for risk in ("classic", "low", "medium", "high")
-        for k in range(1, 11)
-    }
+    num_sim_args = {}
+    for risk in ("classic", "low", "medium", "high"):
+        for k in range(1, 11):
+            num_sim_args[f"{risk}_pick_{k}"] = k + 1
+            num_sim_args[f"{risk}_pick_{k}_earn"] = book_count_for_picks(k)
 
     run_conditions = {
         "run_sims": True,

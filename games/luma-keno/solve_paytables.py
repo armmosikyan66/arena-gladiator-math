@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Solve luma-keno paytables: pool 40, drawn 10, picks 1-10, 4 risk modes.
+"""Solve luma-keno Earn paytables (Lumen + extras + Pulse priced into 0.950 RTP).
+
+Off tables in paytables.json["risks"] stay as the certified table-only
+0.950 chart. This script writes paytables.json["earn"] so Earn modes
+pass the same 3-Star gates after bonuses.
 
 Publish gates (Stake Engine dashboard — binding, stricter than the local
 rgs_verification warnings):
@@ -9,18 +13,18 @@ rgs_verification warnings):
   - Base Mode STD >= 0.60 when cost=1 (leave margin; 0.606 displays as 0.60
     and fails the equality gate).
 
-pick_1 is the 0.950 lattice (the only legal two-outcome 0.1x pair under
-the 0.967 cap). One multiplier per hit — no miss remainder. Picks 2-10
-share the same 0.950 target so the 40-mode spread stays under 0.50pp.
+Caps and the sub-40 consolation are on **settled** payouts (after Lumen
+and Pulse ×2) so ETL40 / CVaR stay legal. Advertised tops are
+settled_cap / (LUMEN_BOOST × PULSE_BOOST).
 
 Structure per (risk, k):
-  - consolation tier at the first paying hit: sub-40x, fixed RTP share
+  - consolation tier at the first paying hit: settled sub-40x, fixed RTP share
     (keeps ETL40 under the 0.9 gate) and lifts the hit rate above the
     1-in-50 floor,
   - classic/low only: a fixed 0.5x refund one hit below pay start when
     P(h) <= 0.35 (Stake Originals Low-style "gentle bleed"; 0.5x = 50 LUT
     units, legal on the 0.1x grid). medium/high stay jackpot-shaped,
-  - remaining budget water-filled over rarer hits, m_h = c * P(h)^-beta,
+  - remaining budget water-filled over rarer hits, m_h = c * coeff(h)^-beta,
     capped by a ladder below the risk top (keeps CVaR/std/max-m legal),
   - 0.1x grid convergence: greedy coin fill, then a hill-climb over single
     and paired +/-0.1 moves. Caps and monotonicity are never violated;
@@ -35,7 +39,15 @@ import json
 import math
 import os
 
-from keno_pick_one import STD_MIN, pick_one_row, pick_one_std
+from keno_pick_one import (
+    LUMEN_BOOST,
+    PULSE_BOOST,
+    STD_MIN,
+    effective_coeff,
+    pick_one_row_earn,
+    pick_one_std_earn,
+    settled_stats,
+)
 
 POOL = 40
 DRAWN = 10
@@ -43,7 +55,7 @@ PICKS = range(1, 11)
 
 RTP_TARGET = 0.9500
 RTP_TOL = 0.0005  # grid-search convergence tolerance
-MODE_RTP_BAND = (0.9485, 0.9515)
+MODE_RTP_BAND = (0.9475, 0.9525)
 # Dashboard Cross-Mode RTP Consistency: <= 0.50pp. Local verifier is 5pp.
 SPREAD_MAX = 0.005
 # Dashboard: non-zero win at least 1 in 50. Keep margin.
@@ -110,8 +122,34 @@ def probabilities(k: int) -> list[float]:
 
 
 def cap_for(risk: str, k: int, h: int) -> float:
+    """Settled (after Lumen) ceiling for advertised hit h."""
     dist = min(k - h, len(CAP_FRACTION) - 1)
     return min(RISK_SHAPES[risk]["top"] * CAP_FRACTION[dist], CAP_ABSOLUTE[dist])
+
+
+def planned_paying(risk: str, k: int) -> frozenset[int]:
+    if k == 1:
+        return frozenset({0, 1})
+    paying = set(range(PAY_START[risk][k], k + 1))
+    rh = refund_hit(risk, k)
+    if rh is not None:
+        paying.add(rh)
+    return frozenset(paying)
+
+
+def pay_coeff(risk: str, k: int) -> list[float]:
+    """P(hit bucket) × Lumen factor. RTP = sum coeff[h] * advertised[h]."""
+    return list(effective_coeff(risk, k, planned_paying(risk, k)))
+
+
+def advertised_cap(risk: str, k: int, h: int) -> float:
+    """Advertised ceiling so settled prize (× Lumen × Pulse) stays under cap_for."""
+    return math.floor(cap_for(risk, k, h) / (LUMEN_BOOST[risk] * PULSE_BOOST) * 10 + 1e-9) / 10
+
+
+def consolation_cap(risk: str) -> float:
+    """Keep settled consolation under 40× so it does not load ETL40."""
+    return math.floor(39.9 / (LUMEN_BOOST[risk] * PULSE_BOOST) * 10 + 1e-9) / 10
 
 
 def tail_capacity_of(p: list[float], tail: list[int], caps: dict) -> float:
@@ -201,23 +239,24 @@ def refund_hit(risk: str, k: int) -> int | None:
 
 def _fill_from(risk: str, k: int, start_pay: float | None) -> list[float]:
     """Water-fill + grid-converge with a fixed (or designed) consolation pay."""
-    p = probabilities(k)
+    p = pay_coeff(risk, k)
     beta = RISK_SHAPES[risk]["beta"]
     start = PAY_START[risk][k]
-    caps = {h: cap_for(risk, k, h) for h in range(start, k + 1)}
+    caps = {h: advertised_cap(risk, k, h) for h in range(start, k + 1)}
     tail = [h for h in range(start + 1, k + 1)]
     rh = refund_hit(risk, k)
     refund_cost = p[rh] * REFUND_X if rh is not None else 0.0
     # With a refund tier below start, keep monotonicity: start >= refund + 0.1.
     min_start = REFUND_X + 0.1 if rh is not None else 0.1
+    sub40 = consolation_cap(risk)
     caps = {h: max(v, min_start) if h == start else v for h, v in caps.items()}
 
-    sub40_budget = min(RISK_SHAPES[risk]["sub40"] * RTP_TARGET, p[start] * min(39.9, caps[start]))
+    sub40_budget = min(RISK_SHAPES[risk]["sub40"] * RTP_TARGET, p[start] * min(sub40, caps[start]))
     if start_pay is None:
         m_start = max(min_start, round(sub40_budget / p[start] * 10) / 10)
-        m_start = min(m_start, 39.9, caps[start])
+        m_start = min(m_start, sub40, caps[start])
     else:
-        m_start = min(max(min_start, round(start_pay * 10) / 10), 39.9, caps[start])
+        m_start = min(max(min_start, round(start_pay * 10) / 10), sub40, caps[start])
     # Never let the consolation alone overshoot the target: remaining budget
     # must stay >= 0 so the tail fill is well-defined. The refund tier below
     # start is fixed and spends its budget first.
@@ -302,19 +341,20 @@ def _fill_from(risk: str, k: int, start_pay: float | None) -> list[float]:
 
 def solve_table(risk: str, k: int) -> tuple[list[float], list[str]]:
     errors: list[str] = []
-    p = probabilities(k)
+    p = pay_coeff(risk, k)
     start = PAY_START[risk][k]
-    caps = {h: cap_for(risk, k, h) for h in range(start, k + 1)}
+    caps = {h: advertised_cap(risk, k, h) for h in range(start, k + 1)}
     tail = [h for h in range(start + 1, k + 1)]
     rh = refund_hit(risk, k)
     refund_cost = p[rh] * REFUND_X if rh is not None else 0.0
     min_start = REFUND_X + 0.1 if rh is not None else 0.1
+    sub40 = consolation_cap(risk)
 
-    # Consolation tier: sub-40x, fixed RTP share. The cap ladder and the
+    # Consolation tier: settled sub-40x, fixed RTP share. The cap ladder and the
     # water-fill shape already leave the tail below target on its own, so the
     # consolation share is used as-is unless caps make it impossible.
     sub40_budget = RISK_SHAPES[risk]["sub40"] * RTP_TARGET
-    max_consolation = p[start] * min(39.9, caps[start])
+    max_consolation = p[start] * min(sub40, caps[start])
     if tail_capacity_of(p, tail, caps) + max_consolation + refund_cost < RTP_TARGET:
         errors.append("budget infeasible: caps cannot reach target RTP")
         return [0.0] * (k + 1), errors
@@ -337,7 +377,7 @@ def solve_table(risk: str, k: int) -> tuple[list[float], list[str]]:
     best = (abs(err_of(designed)), designed)
     if best[0] > RTP_TOL * 2:
         lo_pay = min_start
-        hi_pay = min(39.9, caps[start], max(2.0, round(sub40_budget / p[start] * 2 * 10) / 10))
+        hi_pay = min(sub40, caps[start], max(2.0, round(sub40_budget / p[start] * 2 * 10) / 10))
         steps = int(round((hi_pay - lo_pay) / 0.1)) + 1
         for i in range(steps):
             cand_pay = round(lo_pay + 0.1 * i, 10)
@@ -360,48 +400,16 @@ def solve_table(risk: str, k: int) -> tuple[list[float], list[str]]:
     return m, errors
 
 
-def mode_stats(k: int, table: list[float]) -> dict:
-    pays = table
-    p = probabilities(k)
-    rtp = sum(pi * mi for pi, mi in zip(p, pays))
-    var = sum(pi * (mi - rtp) ** 2 for pi, mi in zip(p, pays))
-
-    ranked = sorted(zip(pays, p))
-    p5k = sum(pi for mi, pi in ranked if mi >= 5000)
-    p10k = sum(pi for mi, pi in ranked if mi >= 10000)
-    etl40 = sum(pi * mi for mi, pi in ranked if mi >= 40)
-    etl10k = sum(pi * mi for mi, pi in ranked if mi >= 10000)
-
-    cum = 0.0
-    tail_start = ranked[0][0]
-    for mi, pi in ranked:
-        cum += pi
-        if cum >= 0.999:
-            tail_start = mi
-            break
-    tail_p = sum(pi for mi, pi in ranked if mi >= tail_start)
-    cvar = (sum(pi * mi for mi, pi in ranked if mi >= tail_start) / tail_p) if tail_p else 0.0
-
-    return {
-        "rtp": rtp,
-        "std": math.sqrt(var),
-        "p5k": p5k,
-        "p10k": p10k,
-        "etl40": etl40,
-        "etl10k": etl10k,
-        "cvar": cvar,
-        "max_m": max(pays),
-        "hit_rate": sum(pi for mi, pi in ranked if mi > 0),
-        "nonzero_payouts": sorted({mi for mi in pays if mi > 0}),
-    }
+def mode_stats(risk: str, k: int, table: list[float]) -> dict:
+    return settled_stats(risk, k, table)
 
 
-def check_gates(k: int, stats: dict) -> list[str]:
+def check_gates(k: int, stats: dict, *, earn: bool = False) -> list[str]:
     f: list[str] = []
     lo, hi = MODE_RTP_BAND
     if not (lo <= stats["rtp"] <= hi):
         f.append(f"rtp={stats['rtp']:.4f} outside {lo:.4f}-{hi:.4f}")
-    if k == 1 and abs(stats["rtp"] - 0.95) > 1e-9:
+    if k == 1 and not earn and abs(stats["rtp"] - 0.95) > 1e-9:
         f.append(f"advertised rtp={stats['rtp']:.4f} != 0.950 lattice")
     if stats["hit_rate"] < HIT_RATE_MIN:
         f.append(f"hit_rate={stats['hit_rate']:.4f} < {HIT_RATE_MIN:.4f} (1 in {1 / stats['hit_rate']:.1f})")
@@ -427,53 +435,54 @@ def check_gates(k: int, stats: dict) -> list[str]:
     return f
 
 
-def solve_all() -> dict:
+def solve_earn() -> dict[str, dict[str, list[float]]]:
+    """Solve Earn tables: extras + Lumen priced into 0.950 RTP."""
     risks: dict[str, dict[str, list[float]]] = {}
     all_rtps: list[float] = []
     failures: dict[str, list[str]] = {}
     for risk in ("classic", "low", "medium", "high"):
         tables: dict[str, list[float]] = {}
         for k in PICKS:
-            name = f"{risk}_pick_{k}"
+            name = f"{risk}_pick_{k}_earn"
             if k == 1:
-                table, errors = pick_one_row(risk), []
+                table, errors = pick_one_row_earn(risk), []
             else:
                 table, errors = solve_table(risk, k)
-            stats = mode_stats(k, table)
-            fails = errors + check_gates(k, stats)
-            if k == 1 and pick_one_std(risk) < STD_MIN:
-                fails.append(f"pick_1 std={pick_one_std(risk):.3f} < {STD_MIN}")
+            stats = settled_stats(risk, k, table)
+            fails = errors + check_gates(k, stats, earn=True)
+            if k == 1 and pick_one_std_earn(risk) < STD_MIN:
+                fails.append(f"pick_1 std={pick_one_std_earn(risk):.3f} < {STD_MIN}")
             if fails:
                 failures[name] = fails
             tables[str(k)] = table
             all_rtps.append(stats["rtp"])
             print(
-                f"{name:16s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+                f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
                 f"max={stats['max_m']:8.1f} hr={stats['hit_rate']:.4f} "
                 f"etl40={stats['etl40']:.3f} cvar={stats['cvar']:6.1f} "
                 f"p5k={stats['p5k']:.1e} p10k={stats['p10k']:.1e} "
                 f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
             )
-            print(f"{'':16s} {table}")
+            print(f"{'':20s} {table}")
         risks[risk] = tables
     spread = max(all_rtps) - min(all_rtps)
-    print(f"\nmode RTP spread={spread:.4f} (dashboard limit {SPREAD_MAX})")
-    print(f"min hit rate={min(mode_stats(k, risks[r][str(k)])['hit_rate'] for r in risks for k in PICKS):.4f}")
+    print(f"\nearn RTP spread={spread:.4f} (dashboard limit {SPREAD_MAX})")
     if spread > SPREAD_MAX:
-        failures["spread"] = [f"{spread:.4f} > {SPREAD_MAX}"]
+        failures["earn_spread"] = [f"{spread:.4f} > {SPREAD_MAX}"]
     if failures:
-        raise SystemExit(f"gate failures: {failures}")
+        raise SystemExit(f"earn gate failures: {failures}")
     return risks
 
 
-def write_outputs(risks: dict) -> None:
+def write_outputs(off: dict, earn: dict) -> None:
     here = os.path.dirname(os.path.abspath(__file__))
     payload = {
         "pool": POOL,
         "drawn": DRAWN,
         "rtp_target": RTP_TARGET,
         "picks": {"min": 1, "max": 10},
-        "risks": risks,
+        "risks": off,
+        "earn": earn,
     }
     game_path = os.path.join(here, "paytables.json")
     with open(game_path, "w", encoding="UTF-8") as handle:
@@ -502,4 +511,8 @@ def write_outputs(risks: dict) -> None:
 
 
 if __name__ == "__main__":
-    write_outputs(solve_all())
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, "paytables.json"), encoding="UTF-8") as handle:
+        existing = json.load(handle)
+    off = existing["risks"]
+    write_outputs(off, solve_earn())

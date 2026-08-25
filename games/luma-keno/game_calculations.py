@@ -2,7 +2,14 @@
 
 from math import comb
 
-from keno_pick_one import criteria_hits
+from keno_pick_one import (
+    parse_mode_name,
+    parse_spin_criteria,
+    settle_pay as settle_amount,
+    spin_outcomes,
+    spin_weight,
+    weight_scale,
+)
 from src.executables.executables import Executables
 
 
@@ -14,28 +21,56 @@ class GameCalculations(Executables):
             return 0
         return comb(drawn, h) * comb(rest, k - h)
 
-    def mode_parts(self) -> tuple[str, int]:
-        """Split '{risk}_pick_{k}' into (risk, k)."""
-        risk, pick = self.get_current_betmode().get_name().rsplit("_pick_", 1)
-        return risk, int(pick)
+    def mode_parts(self) -> tuple[str, int, bool]:
+        """Split mode name into (risk, k, earn)."""
+        return parse_mode_name(self.get_current_betmode().get_name())
 
     def picks_for_mode(self) -> int:
         return self.mode_parts()[1]
 
     def hits_from_criteria(self) -> int:
-        return criteria_hits(str(self.criteria))
+        return self.spin_from_criteria().main_hits
 
-    def pay_row_for(self, risk: str, k: int) -> list[float]:
-        return [self.pay_for(risk, k, h) for h in range(k + 1)]
+    def lumen_hit_from_criteria(self) -> bool:
+        return self.spin_from_criteria().lumen_hit
 
-    def pay_for(self, risk: str, k: int, h: int) -> float:
-        table = self.config.keno_paytable[risk][k]
+    def spin_from_criteria(self):
+        return parse_spin_criteria(str(self.criteria))
+
+    def pay_row_for(self, risk: str, k: int, earn: bool) -> list[float]:
+        return [self.pay_for(risk, k, h, earn) for h in range(k + 1)]
+
+    def pay_for(self, risk: str, k: int, h: int, earn: bool) -> float:
+        tables = self.config.keno_earn_paytable if earn else self.config.keno_paytable
+        table = tables[risk][k]
         if 0 <= h < len(table):
             return round(float(table[h] or 0), 1)
         return 0.0
 
-    def mode_rtp(self, risk: str, k: int) -> float:
-        total = comb(self.config.keno_pool, k)
+    def settle_pay(
+        self,
+        risk: str,
+        k: int,
+        hits: int,
+        lumen_hit: bool,
+        earn: bool,
+        pulse: bool = False,
+    ) -> float:
+        base = self.pay_for(risk, k, hits, earn)
+        if earn:
+            return settle_amount(base, lumen_hit, pulse, risk)
+        return base
+
+    def mode_rtp(self, risk: str, k: int, earn: bool) -> float:
+        if not earn:
+            total = comb(self.config.keno_pool, k)
+            return sum(
+                self.hit_weight(k, h) * self.pay_for(risk, k, h, False)
+                for h in range(k + 1)
+            ) / total
+        total = comb(self.config.keno_pool, k) * self.config.keno_drawn * weight_scale()
         return sum(
-            self.hit_weight(k, h) * self.pay_for(risk, k, h) for h in range(k + 1)
+            spin_weight(k, spin, risk)
+            * self.settle_pay(risk, k, spin.total_hits, spin.lumen_hit, True, spin.pulse)
+            for spin in spin_outcomes(k, self.config.keno_drawn)
         ) / total
