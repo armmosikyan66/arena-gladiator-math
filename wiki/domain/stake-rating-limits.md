@@ -1,7 +1,7 @@
 ---
 type: domain
 tags: [stake-engine, rating, validation, cvar, etl]
-updated: 2026-08-24
+updated: 2026-08-25
 ---
 
 # Stake rating limits (math validation)
@@ -23,7 +23,7 @@ constraints.
 | CVaR / bet (worst 0.1% tail) | ≤ 700 | ≤ 800 | Stake-tool verif.md; repo uses 800 |
 | ETL > 40× cost (RTP share / contrib) | ≤ 0.8 | ≤ 0.9 | verif.md; `rgs_verification` 0.9 |
 | ETL > 10,000× | ≤ 0.6 | ≤ 0.8 | verif.md; repo 0.8 |
-| Base stddev (costMultiplier = 1) | 0.6–50 | 0.6–60 | verif.md |
+| Base stddev (costMultiplier = 1) | 0.6–50 | 0.6–60 | verif.md; dashboard Base Mode STD treats 0.60 as a failing equality — leave margin (luma-keno `STD_MIN=0.62`) |
 | Max payout multiplier | 25,000× | 100,000× | verif.md |
 | Max cost multiplier | 1,000 | 1,500 | verif.md (not max payout) |
 | RTP | within product target; repo also flags RTP **> 0.967** | `rgs_verification.py` |

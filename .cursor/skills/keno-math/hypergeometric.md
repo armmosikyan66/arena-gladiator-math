@@ -33,8 +33,12 @@ def hit_weight(k: int, h: int, drawn: int = 20, pool: int = 80) -> int:
 ```
 
 Write LUT rows as `id,weight,payout` with `payout = int(round(m * 100))`.
-One row per hit count is enough. If you emit several books per hit (debug
-skins), split `w(h)` across those ids so they **sum** to `w(h)`.
+One row per hit count. Do **not** split a hit's weight across two prizes
+(luma-keno pick_1 remainder 24+6 paid 0.6× and 0.7× for the same miss —
+that failed Base Mode STD and showed two history amounts).
+
+luma-keno uses `N=40`, `K=10` (`rest=30`). Same formulas; `w(h) =
+C(10,h)*C(30,k-h)`, `Σ w = C(40,k)`.
 
 ## RTP
 

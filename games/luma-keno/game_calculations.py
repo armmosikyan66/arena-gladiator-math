@@ -2,6 +2,7 @@
 
 from math import comb
 
+from keno_pick_one import criteria_hits
 from src.executables.executables import Executables
 
 
@@ -22,7 +23,7 @@ class GameCalculations(Executables):
         return self.mode_parts()[1]
 
     def hits_from_criteria(self) -> int:
-        return int(str(self.criteria).rsplit("_", 1)[-1])
+        return criteria_hits(str(self.criteria))
 
     def pay_row_for(self, risk: str, k: int) -> list[float]:
         return [self.pay_for(risk, k, h) for h in range(k + 1)]

@@ -63,9 +63,12 @@ and run the Rust optimizer — that destroys exact weights.
 6. **Single-shot round.** `auto_close_disabled=False`. Emit `setWin` /
    `setTotalWin` / `finalWin`. Unlike tower, keno must **not** stay open
    for mid-round choices.
-7. **Same target RTP on every pick-size mode** (within 0.05).
-   `rgs_verification.py` warns if any two modes differ by more than 5 RTP
-   points. Design paytables to the same RTP, vary only variance.
+7. **Same LUT RTP on every pick-size mode.** Dashboard **Cross-Mode RTP
+   Consistency** is **0.50pp** (binding). Local `rgs_verification` only
+   warns at **5pp**. Design advertised tables to one target. pick_1 on
+   the 0.1× lattice is 0.950 or 0.975; 0.975 busts the 0.967 cap, so
+   luma-keno targets **0.950 on all 40 modes**. Do not split miss weight
+   to fake a higher RTP (0.6× vs 0.7× fails Base Mode STD).
 8. **3-Star envelope (default).** High-risk `pick_10` is the binding mode.
    Cap the top prize from probability, not from a marketing max. Fail
    closed — do not clamp after validation.
@@ -123,8 +126,8 @@ def run_spin(self, sim, simulation_seed=None):
     self.imprint_wins()
 ```
 
-`num_sim_args[mode] = k + 1` (one book per legal hit). Quotas may be equal
-(`1/(k+1)`); **weights** carry the true probabilities, not quotas.
+`num_sim_args[mode] = k + 1` (one book per legal hit). Quotas may be equal;
+**weights** carry the true probabilities, not quotas.
 
 ## BetMode
 
@@ -147,7 +150,27 @@ BetMode(
 ```
 
 Risk tables (optional): `classic_pick_10`, `low_pick_10`, … — still one
-RTP target. High-risk changes the **shape** of `pay[h]`, not EV.
+LUT RTP target. High-risk changes the **shape** of `pay[h]`, not EV.
+
+## This repo: luma-keno
+
+`math/games/luma-keno/`. Pool **40**, drawn **10**, picks **1–10**, four
+risks (`classic` / `low` / `medium` / `high`). `win_type = "other"`.
+Target RTP **0.950** (house edge 5%). Skip the optimizer.
+
+**pick_1 lattice.** Two outcomes on the 0.1× grid, `P(hit)=10/40=0.25`,
+so a single miss/hit pair has RTP in steps of **0.025**: **0.950 or
+0.975**. 0.975 busts `verify_mode_volatility` (0.967). One multiplier
+per hit — **do not** split miss weight (0.6× vs 0.7× fails Base Mode STD
+and pays two prizes for one miss). Advertised rows: low 0.5/2.3 (std
+0.78, above the 0.60 floor), classic 0.4/2.6, medium 0.2/3.2, high 0.1/3.5.
+
+**Dashboard gates:** hit rate ≥ 2%; Cross-Mode RTP ≤ **0.50pp**; per-mode
+RTP ≤ 0.967; Base Mode STD ≥ **0.60** (leave margin — 0.606 displays as
+0.60 and fails). All 40 modes target **0.950**. Treat verifier warnings
+as failures.
+
+Wiki: [[codebase/luma-keno]] in `math/wiki/`.
 
 ## After `create_books`
 
@@ -182,12 +205,14 @@ From `math/` (Python ≥ 3.12):
 ```sh
 make setup
 make run GAME=keno
-PYTHONPATH=".:games/keno" python3 -m utils.rgs_verification -g keno
+make run GAME=luma-keno
+PYTHONPATH=".:games/luma-keno" python3 -m utils.rgs_verification -g luma-keno
+PYTHONPATH=".:games/luma-keno" python3 games/luma-keno/export_luts.py
 python3 ../.cursor/skills/keno-math/scripts/rtp.py path/to/paytable.json
 ```
 
 Debug: `compression=False`, `num_threads=1`. Production compression on.
-Sim count is `k+1` per mode, not 100k.
+Sim count is `k+1` per mode (2 books for pick_1), not 100k.
 
 ## Do / don't
 
@@ -197,7 +222,7 @@ Sim count is `k+1` per mode, not 100k.
 | Mode = pick size (and risk) | One `base` mode for all pick sizes |
 | Reconstruct draw on the FE | Trust book numbers as the player's card |
 | `finalWin` + auto-close | Tower `auto_close_disabled` session pattern |
-| Same RTP every pick size | Let pick_1 RTP drift >5 pts from pick_10 |
+| Same LUT RTP every pick size (≤0.50pp dashboard) | Split miss weight (0.6× vs 0.7×) to fake a higher pick_1 RTP |
 | Build max prize from P(h) | Start from a 10,000× headline then fit |
 
 ## Additional resources

@@ -35,7 +35,9 @@ the Rust optimizer, or a copy of the base LUT if optimization is skipped).
 
 `/wallet/play` locks the sampled book's payout. `/wallet/end-round` pays that
 book — it is not a generic refund. Keep the round open with
-`auto_close_disabled` when the player still has choices.
+`auto_close_disabled` when the player still has choices (Tower). **Keno**
+closes on Play (`auto_close_disabled=False`); the client credits from
+`play.balance` and only calls `EndRound` if `round.active`.
 
 Iframe gets `sessionID`, `lang`, `device`, `rgs_url` (never hardcode RGS URL).
 
@@ -53,13 +55,18 @@ only warns about. Both failed Lumen Keno's first upload (2026-08-24):
 2. **Mode RTP spread.** Dashboard **Cross-Mode RTP Consistency** is **0.50pp**
    (binding). Local `rgs_verification` only warns at **5pp**. pick_1 on the
    0.1× grid is a 2-outcome lattice (RTP 0.950 or 0.975). 0.975 busts the
-   0.967 cap; 0.950 is 1.65pp below the 0.9660 target. luma-keno keeps the
-   advertised 0.950 miss/hit pair and splits miss weight 24+6 so LUT RTP is
-   **0.965** (player-favorable +0.1× on 6 of 30 misses). 40 modes, spread
-   **0.15pp**. Hit odds stay exact 10/40. See `keno_pick_one.py`.
+   0.967 cap. luma-keno targets **0.950 on all 40 modes** (one multiplier
+   per hit). low_pick_1 is **0.5/2.3** so Base Mode STD (~0.78) clears the
+   0.60 floor with margin. Do not split miss weight. See
+   [[sources/keno-xtreme-analysis]] and [[codebase/luma-keno]].
+3. **Base Mode STD.** Floor is **0.60×** when cost=1. Dashboard failed
+   `Value: 0.60x` / `Limit: = 0.60x` — treat as strict greater-than, and
+   do not sit on 0.60 (0.599/0.606 round to 0.60 and fail). luma-keno
+   solver uses `STD_MIN=0.62`.
 
 ## Related
 
 - [[codebase/gladiator-tower]]
+- [[codebase/luma-keno]]
 - [[domain/stake-rating-limits]]
 - [[codebase/sdk-layout]]

@@ -1,7 +1,7 @@
 ---
 type: codebase
 tags: [math-sdk, layout]
-updated: 2026-08-24
+updated: 2026-08-25
 ---
 
 # SDK layout
@@ -13,7 +13,8 @@ Paths from repo root. Vendor catalog: `math/docs/math_docs/directory.md`
 | --- | --- | --- |
 | `math/src/` | Rarely | Shared calculations, events, state, wins, writers |
 | `math/games/template/` | Copy | New-game skeleton |
-| `math/games/gladiator-tower/` | Yes | Live product math |
+| `math/games/gladiator-tower/` | Yes | Live product math (session climb) |
+| `math/games/luma-keno/` | Yes | Live product math (keno hit-count books) |
 | `math/games/0_0_*` | Samples | Slot examples (lines/ways/cluster/scatter) if present |
 | `math/optimization_program/` | Rarely | Rust LUT weight optimizer |
 | `math/utils/` | Helpers | Analytics, LUT merge, zstd, hashes |
@@ -29,4 +30,5 @@ Commands from `math/`: `make setup`, `make run GAME=<id>`, `make test`.
 ## Related
 
 - [[codebase/gladiator-tower]]
+- [[codebase/luma-keno]]
 - [[domain/stake-engine-publish]]

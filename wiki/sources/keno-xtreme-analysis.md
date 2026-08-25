@@ -37,9 +37,9 @@ Differences vs our game:
 
 | | Keno Xtreme (docx) | luma-keno |
 | --- | --- | --- |
-| Picks | 1–10 | **1–10** (pick_1 LUT RTP 0.965 via miss remainder; see below) |
+| Picks | 1–10 | **1–10** |
 | Risk modes | 5 | 4 (classic/low/medium/high) |
-| RTP | 96.50% | **~96.60%** (target 0.9660, realized 0.9650–0.9665) |
+| RTP | 96.50% | **95.00%** all 40 modes (Cross-Mode ≤ 0.50pp; pick_1 lattice) |
 | Top prize | 50k–100k× (claims) | 800/400/1500/4900× by risk (CVaR/ETL-bound) |
 
 ## Best practice confirmed by the docx
@@ -72,25 +72,23 @@ luma-keno now does the same on the certified 0.1× grid:
   the refund because P(h) is too high (~0.37–0.44) and would eat the RTP
   budget.
 
-## pick_1 at ~96.6% (lattice remainder, 2026-08-25)
+## pick_1 lattice (2026-08-25)
 
 `verify_mode_volatility` caps per-mode RTP at **0.967**. pick_1 is a
 two-outcome game on the 0.1× payout grid with P(hit)=0.25, so a single
 miss/hit pair has RTP in steps of **0.025**. The lattice jumps 0.95 →
-0.975; 0.975 busts the ceiling. Keeping advertised pick_1 at 0.95 next to
-picks 2–10 at 0.9660 is a **1.65pp** spread — legal for `rgs_verification`
-(5pp) but blocked by the dashboard Cross-Mode RTP gate (**0.50pp**).
+0.975; 0.975 busts the ceiling.
 
-A single advertised pair cannot land on 96.6%. luma-keno keeps the
-advertised 0.950 miss/hit row (per-risk shape: low 0.6/2.0, classic
-0.4/2.6, medium 0.2/3.2, high 0.1/3.5) and splits miss weight
-`C(10,0)·C(30,1)=30` into **24 @ advertised miss** and **6 @ miss+0.1×**.
-Hit weight stays exact 10/40. LUT RTP is **0.965**. Spread vs max pick
-2–10 (0.9665) is **0.15pp**. Match prize is deterministic vs the
-paytable; the extra 0.1× is player-favorable on 20% of misses
-(`keno_pick_one.py`). Do not map pick_1 onto pick_2 books.
+A miss remainder (split weight 24+6 so some misses pay +0.1×) lifts LUT
+RTP to 0.965 but pays **two prizes for one miss** (history 0.6× vs 0.7×)
+and drops low_pick_1 std onto/below the 0.60 floor. **Do not use it.**
+
+Current tables (`keno_pick_one.py`): one miss/hit pair at 0.950 — low
+**0.5/2.3** (std ~0.78), classic 0.4/2.6, medium 0.2/3.2, high 0.1/3.5.
+Picks 2–10 share 0.950. LUT weights 30 + 10. Client `MIN_PICKS=1`. One
+row per hit count.
 
 ## Related
 
 - [[domain/stake-rating-limits]] — the 0.967 ceiling and 3-Star gates.
-- [[codebase/luma-keno]] ? (page not yet created)
+- [[codebase/luma-keno]]

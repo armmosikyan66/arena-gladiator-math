@@ -112,9 +112,10 @@ Do not silently resolve contradictions.
 
 ## Current repo context
 
-This wiki sits beside a vendored Stake Engine Math SDK. The live product game
-is **Gladiator Tower** (`math/games/gladiator-tower/`) — a session climb, not
-a slot. Sample slot games may still exist under `math/games/0_0_*`.
+This wiki sits beside a vendored Stake Engine Math SDK. Live product games
+are **Gladiator Tower** (`math/games/gladiator-tower/`, session climb) and
+**Luma Keno** (`math/games/luma-keno/`, hit-count books). Sample slot games
+may still exist under `math/games/0_0_*`.
 
 Math generation must follow [[domain/stake-rating-limits]] (default 3-Star)
 and [[concepts/tower-math-from-ratings]]. Do not create a wiki page for every

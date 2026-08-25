@@ -34,9 +34,14 @@ Non-zero LUT payouts `< 10` (i.e. `< 0.1×`) fail format checks.
 
 ## Mode RTP gap
 
-`rgs_verification` warns if any two modes differ by more than **0.05**
-RTP. Pick-1 vs pick-10 must share a target. Risk skins (low / classic /
-high) also share EV; they only reshape variance.
+Dashboard **Cross-Mode RTP Consistency** is **0.50pp** (binding). Local
+`rgs_verification` only warns at **5pp** (0.05 RTP). Pick sizes and risk
+skins must share LUT EV; they only reshape variance.
+
+pick_1 on a 0.1× two-outcome lattice cannot sit at ~0.966 (next step is
+0.975 > 0.967 cap). luma-keno targets **0.950 on every mode** so
+Cross-Mode stays under 0.50pp. One multiplier per hit. low_pick_1 is
+0.5/2.3 (std ~0.78) — 0.6/2.0 sits on the 0.60 STD floor.
 
 ## Binding constraints
 
@@ -52,8 +57,8 @@ high) also share EV; they only reshape variance.
 
 Tower settle modes are a single payout, so they jitter ~1% of books by
 ±0.1× for Stake stats. Keno modes already have a hit distribution.
-Jittering keno prizes silently changes `P(h)`-implied odds. Only use
-jitter if a mode is truly constant-payout and you document the RTP hit.
+Do **not** jitter advertised `pay[h]` (that silently changes posted odds).
+Do **not** split miss weight to raise pick_1 RTP — one prize per hit.
 
 ## Script
 

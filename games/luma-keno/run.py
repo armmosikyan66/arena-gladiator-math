@@ -11,6 +11,7 @@ import os
 
 from game_config import GameConfig
 from gamestate import GameState
+from keno_pick_one import criteria_hits
 from src.state.run_sims import create_books
 from src.write_data.write_configs import generate_configs
 
@@ -41,7 +42,7 @@ def write_exact_lookup_tables(gamestate: GameState) -> None:
         with open(segmented, encoding="UTF-8") as handle:
             for line in handle:
                 sim_id, criteria, *_ = line.strip().split(",")
-                hits = int(criteria.rsplit("_", 1)[-1])
+                hits = criteria_hits(criteria)
                 weight = comb(drawn, hits) * comb(rest, k - hits)
                 rows.append(f"{sim_id},{weight},{payouts[sim_id]}\n")
 

@@ -187,5 +187,6 @@ Not a slot. Session-open modes (`easy`…`nightmare`) emit `sessionStart` +
 - Official wiki map: [wiki-map.md](wiki-map.md)
 - Game file templates: [game-files.md](game-files.md)
 - Keno (hit-count books, hypergeometric, FE reconstruction): skill `keno-math`
+  (`math/games/luma-keno/` is the live keno).
 - Published docs: https://stakeengine.github.io/math-sdk/
 - Engine: https://engine.stake.com/

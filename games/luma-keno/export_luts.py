@@ -16,6 +16,8 @@ import json
 import os
 from math import comb
 
+from keno_pick_one import criteria_hits
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 LIBRARY = os.path.join(HERE, "library")
 PUBLISH = os.path.join(LIBRARY, "publish_files")
@@ -31,17 +33,21 @@ def export_mode(mode: str, k: int, paytable: list[float]) -> dict:
     with open(seg_path, encoding="UTF-8") as handle:
         for line in handle:
             sim_id, crit, *_ = line.strip().split(",")
-            criteria[sim_id] = int(crit.rsplit("_", 1)[-1])
+            criteria[sim_id] = crit
 
     rows = []
     with open(lut_path, encoding="UTF-8") as handle:
         for line in handle:
             sim_id, weight, payout = line.strip().split(",")
-            hits = criteria[sim_id]
+            hits = criteria_hits(criteria[sim_id])
             payout_int = int(payout)
             expected = int(round(paytable[hits] * 100))
+            expect_weight = comb(10, hits) * comb(30, k - hits)
             assert payout_int == expected, (
                 f"{mode}: LUT payout {payout_int} != paytable[{hits}] {expected}"
+            )
+            assert int(weight) == expect_weight, (
+                f"{mode} hits={hits}: weight {weight} != {expect_weight}"
             )
             rows.append(
                 {
@@ -55,18 +61,12 @@ def export_mode(mode: str, k: int, paytable: list[float]) -> dict:
     rows.sort(key=lambda r: r["id"])
     assert len(rows) == k + 1, f"{mode}: expected {k + 1} books, found {len(rows)}"
 
-    drawn, pool = 10, 40
+    pool = 40
     total = sum(r["weight"] for r in rows)
     assert total == comb(pool, k), f"{mode}: weight sum {total} != C({pool},{k})"
 
     hits_seen = {r["hits"] for r in rows}
     assert hits_seen == set(range(k + 1)), f"{mode}: missing hit rows"
-
-    for r in rows:
-        expect = comb(drawn, r["hits"]) * comb(pool - drawn, k - r["hits"])
-        assert r["weight"] == expect, (
-            f"{mode} hits={r['hits']}: weight {r['weight']} != {expect}"
-        )
 
     return {
         "cost": 1.0,

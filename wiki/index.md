@@ -3,8 +3,8 @@ type: index
 tags: [meta]
 updated: 2026-08-25
 source_count: 3
-page_count: 11
-last_change: 2026-08-25 Restore pick_1 at 96.5% LUT RTP (miss remainder); 40 modes, spread 0.15pp.
+page_count: 12
+last_change: 2026-08-25 client Play applies play.balance; keno single-shot EndRound.
 ---
 
 # Math SDK Wiki
@@ -16,7 +16,7 @@ vendor docs stay in `math/docs/` — this wiki synthesizes **this repo**.
 
 - Browse by category. Every page has YAML frontmatter and `[[wikilinks]]`.
 - `log.md` records ingest / query / lint.
-- Schema: `math/AGENTS.md`. Skills: `math-sdk`, `math-wiki`.
+- Schema: `math/AGENTS.md`. Skills: `math-sdk`, `math-wiki`, `keno-math`.
 
 **Common asks**
 
@@ -39,6 +39,7 @@ _Vendor and external docs, summarized — not copied._
 
 - [[codebase/sdk-layout]] — `src/`, `games/`, outputs, what to edit.
 - [[codebase/gladiator-tower]] — Session climb math, modes, publish pipeline.
+- [[codebase/luma-keno]] — Hit-count keno, 0.950 RTP all modes; web Play applies `play.balance`.
 
 ## Domain
 

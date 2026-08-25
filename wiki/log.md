@@ -2,6 +2,37 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-08-25] manual | Client Play wallet vs preview planRound
+
+- summary: wiki/codebase/luma-keno.md
+- touched: wiki/domain/stake-engine-publish.md, wiki/index.md
+- notes: Web `getEngine().Play` uses 40 `{risk}_pick_{k}` modes. Hits from kenoCatch; FE reconstructDraw. Store must apply play.balance (demo rail stuck at 1000 if not). round.ts planRound/settleRound preview-only. Keno auto-closes on Play. Buy UI is not published math.
+
+## [2026-08-25] fix | drop miss remainder; 0.950 all modes; low_pick_1 0.5/2.3
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno/keno_pick_one.py, solve_paytables.py, paytables.json, library/ (40 modes, 2 books per pick_1), web keno-books.json, keno-paytables.json, types.ts TOP_PRIZE, wiki/domain/stake-engine-publish.md, wiki/sources/keno-xtreme-analysis.md, wiki/index.md, .cursor/skills/keno-math/
+- notes: Dual miss 0.6×/0.7× rejected. All 40 modes RTP ~0.950 (spread ~0.10pp). low_pick_1 LUT 30@50 + 10@230, std ~0.78 (clears 0.60 floor with margin). House edge 5%. Re-upload publish_files/.
+
+## [2026-08-25] ingest | luma-keno advertised chart vs LUT remainder
+
+- summary: wiki/codebase/luma-keno.md
+- touched: wiki/codebase/sdk-layout.md, wiki/domain/stake-engine-publish.md, wiki/sources/keno-xtreme-analysis.md, wiki/index.md, .cursor/skills/keno-math/ (SKILL, paytable, events, hypergeometric)
+- new: wiki/codebase/luma-keno.md
+- notes: Dashboard Cross-Mode RTP 0.50pp; pick_1 LUT 24+6 remainder at 0.965; FE panel shows advertised miss only (0.6× not 0.6×/0.7×). Mirrored skill copy under math/.cursor/skills/keno-math/.
+
+## [2026-08-25] fix | pick_1 miss remainder (24+6) for dashboard 0.50pp
+
+- summary: wiki/sources/keno-xtreme-analysis.md
+- touched: games/luma-keno/keno_pick_one.py, solve_paytables.py, paytables.json, game_config.py, game_calculations.py, gamestate.py, game_events.py, run.py, export_luts.py, library/ (40 modes, 3 books per pick_1), web paytable panel, keno-books.json, keno-paytables.json, wiki/domain/stake-engine-publish.md
+- notes: Miss weight 30 split 24@miss + 6@miss+0.1. Classic LUT 24@40, 6@50, 10@260. pick_1 LUT RTP 0.965; picks 2–10 0.9654–0.9665. Full spread 0.15pp. rgs_verification clean. Client MIN_PICKS=1, panel shows both miss amounts.
+
+## [2026-08-25] fix | pick_1 one payout per hit (drop miss remainder)
+
+- summary: wiki/sources/keno-xtreme-analysis.md
+- touched: games/luma-keno/keno_pick_one.py, solve_paytables.py, paytables.json, game_config.py, game_calculations.py, gamestate.py, run.py, export_luts.py, library/ (40 modes, 2 books per pick_1), web paytable panel, keno-books.json, keno-paytables.json, wiki/domain/stake-engine-publish.md
+- notes: Dual miss 0.4×/0.5× rejected. Classic miss always 0.4× (LUT 30@40, 10@260). pick_1 RTP 0.950; picks 2–10 0.9654–0.9665. Solver spread gate is picks 2–10 only (0.11pp). Full 40-mode spread 1.65pp fails dashboard 0.50pp. Client MIN_PICKS=1, one number per hit row.
+
 ## [2026-08-25] fix | Restore pick_1 at 96.5% LUT RTP with 1-pick client play
 
 - summary: wiki/sources/keno-xtreme-analysis.md

@@ -13,7 +13,8 @@ Guidance for agents working in `math/`. Companion to the web app in `web/`.
   repo `.cursor/skills/math-sdk/`).
 - **Keno skill**: `.cursor/skills/keno-math/` — hit-count books, exact
   hypergeometric weights, frontend draw reconstruction (not a slot).
-- **Live game**: `math/games/gladiator-tower/` (session climb, `win_type=other`).
+- **Live games**: `math/games/gladiator-tower/` (session climb) and
+  `math/games/luma-keno/` (hit-count keno).
 
 ## Coding conventions
 

@@ -5,11 +5,13 @@ Publish gates (Stake Engine dashboard — binding, stricter than the local
 rgs_verification warnings):
   - every mode must award a non-zero win at least 1 in 50 (hit rate >= 2%);
   - per-mode RTP <= 0.967 (3-star volatility limit);
-  - Cross-Mode RTP Consistency: max-min RTP <= 0.50pp.
+  - Cross-Mode RTP Consistency: max-min RTP <= 0.50pp;
+  - Base Mode STD >= 0.60 when cost=1 (leave margin; 0.606 displays as 0.60
+    and fails the equality gate).
 
-pick_1 is one multiplier per hit on the 0.950 lattice (the only legal
-two-outcome 0.1x pair under the 0.967 cap). Picks 2-10 share RTP ~0.9660.
-A miss/hit remainder split is not used: each hit count has one payout.
+pick_1 is the 0.950 lattice (the only legal two-outcome 0.1x pair under
+the 0.967 cap). One multiplier per hit — no miss remainder. Picks 2-10
+share the same 0.950 target so the 40-mode spread stays under 0.50pp.
 
 Structure per (risk, k):
   - consolation tier at the first paying hit: sub-40x, fixed RTP share
@@ -33,15 +35,15 @@ import json
 import math
 import os
 
-from keno_pick_one import pick_one_row
+from keno_pick_one import STD_MIN, pick_one_row, pick_one_std
 
 POOL = 40
 DRAWN = 10
 PICKS = range(1, 11)
 
-RTP_TARGET = 0.9660
+RTP_TARGET = 0.9500
 RTP_TOL = 0.0005  # grid-search convergence tolerance
-MODE_RTP_BAND = (0.9645, 0.9665)
+MODE_RTP_BAND = (0.9485, 0.9515)
 # Dashboard Cross-Mode RTP Consistency: <= 0.50pp. Local verifier is 5pp.
 SPREAD_MAX = 0.005
 # Dashboard: non-zero win at least 1 in 50. Keep margin.
@@ -90,6 +92,7 @@ GATES = {
     "etl10k": 0.70,
     "cvar": 700.0,
     "std": 55.0,
+    "std_min": STD_MIN,
     "max_m": 10000.0,
 }
 
@@ -396,11 +399,10 @@ def mode_stats(k: int, table: list[float]) -> dict:
 def check_gates(k: int, stats: dict) -> list[str]:
     f: list[str] = []
     lo, hi = MODE_RTP_BAND
-    # pick_1 is lattice-locked at 0.950; the 0.966 band applies to k >= 2.
-    if k != 1 and not (lo <= stats["rtp"] <= hi):
+    if not (lo <= stats["rtp"] <= hi):
         f.append(f"rtp={stats['rtp']:.4f} outside {lo:.4f}-{hi:.4f}")
     if k == 1 and abs(stats["rtp"] - 0.95) > 1e-9:
-        f.append(f"rtp={stats['rtp']:.4f} != 0.950 lattice")
+        f.append(f"advertised rtp={stats['rtp']:.4f} != 0.950 lattice")
     if stats["hit_rate"] < HIT_RATE_MIN:
         f.append(f"hit_rate={stats['hit_rate']:.4f} < {HIT_RATE_MIN:.4f} (1 in {1 / stats['hit_rate']:.1f})")
     if stats["p5k"] > GATES["p5k"]:
@@ -415,6 +417,8 @@ def check_gates(k: int, stats: dict) -> list[str]:
         f.append(f"cvar={stats['cvar']:.0f}")
     if stats["std"] > GATES["std"]:
         f.append(f"std={stats['std']:.1f}")
+    if stats["std"] < GATES["std_min"]:
+        f.append(f"std={stats['std']:.3f} < {GATES['std_min']} (Base Mode STD floor)")
     if stats["max_m"] > GATES["max_m"]:
         f.append(f"max_m={stats['max_m']:.0f}")
     # k >= 2 needs at least two paying tiers.
@@ -425,7 +429,6 @@ def check_gates(k: int, stats: dict) -> list[str]:
 
 def solve_all() -> dict:
     risks: dict[str, dict[str, list[float]]] = {}
-    band_rtps: list[float] = []
     all_rtps: list[float] = []
     failures: dict[str, list[str]] = {}
     for risk in ("classic", "low", "medium", "high"):
@@ -438,12 +441,12 @@ def solve_all() -> dict:
                 table, errors = solve_table(risk, k)
             stats = mode_stats(k, table)
             fails = errors + check_gates(k, stats)
+            if k == 1 and pick_one_std(risk) < STD_MIN:
+                fails.append(f"pick_1 std={pick_one_std(risk):.3f} < {STD_MIN}")
             if fails:
                 failures[name] = fails
             tables[str(k)] = table
             all_rtps.append(stats["rtp"])
-            if k >= 2:
-                band_rtps.append(stats["rtp"])
             print(
                 f"{name:16s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
                 f"max={stats['max_m']:8.1f} hr={stats['hit_rate']:.4f} "
@@ -454,12 +457,10 @@ def solve_all() -> dict:
             print(f"{'':16s} {table}")
         risks[risk] = tables
     spread = max(all_rtps) - min(all_rtps)
-    band_spread = max(band_rtps) - min(band_rtps)
-    print(f"\nmode RTP spread={spread:.4f} (incl. pick_1 0.95 lattice)")
-    print(f"picks 2-10 spread={band_spread:.4f} (dashboard limit {SPREAD_MAX})")
+    print(f"\nmode RTP spread={spread:.4f} (dashboard limit {SPREAD_MAX})")
     print(f"min hit rate={min(mode_stats(k, risks[r][str(k)])['hit_rate'] for r in risks for k in PICKS):.4f}")
-    if band_spread > SPREAD_MAX:
-        failures["spread"] = [f"{band_spread:.4f} > {SPREAD_MAX}"]
+    if spread > SPREAD_MAX:
+        failures["spread"] = [f"{spread:.4f} > {SPREAD_MAX}"]
     if failures:
         raise SystemExit(f"gate failures: {failures}")
     return risks

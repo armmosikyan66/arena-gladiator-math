@@ -32,8 +32,10 @@ state change.
 ```
 
 `amount` on win events is `int(round(multiplier * 100))` — same units as
-`payoutMultiplier` (50× → `5000`). `paytable[h]` is float 0.1× steps for
-the FE chart; do not let it disagree with `kenoCatch.multiplier`.
+`payoutMultiplier` (50× → `5000`). `paytable[h]` is the 0.1× chart.
+Wallet credit is book-root `payoutMultiplier`, which must match LUT
+column 3 and `kenoCatch.multiplier`. One multiplier per hit count —
+`paytable[h]` and the sampled book agree.
 
 Do **not** emit slot `reveal` boards. Do **not** omit `finalWin` (tower
 omits it to keep the round open; keno must close).
