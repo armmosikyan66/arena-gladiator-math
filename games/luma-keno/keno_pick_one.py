@@ -201,6 +201,11 @@ def extras_forced_reason(k: int, main_hits: int, lumen_hit: bool) -> str | None:
 
 
 def extra_outcomes(k: int, main_hits: int, lumen_hit: bool) -> list[tuple[bool, str, int]]:
+    """Earn extras: first match lumen → near-miss → luck (main_hits >= 2).
+
+    Luck weight is EXTRA_CHANCE_PCT[risk] / 100 of the leftover after Lumen
+    and near-miss. It is 0 at pick_1 (cannot have two main hits).
+    """
     forced = extras_forced_reason(k, main_hits, lumen_hit)
     js = extra_hit_js(k, main_hits)
     if forced:
