@@ -208,4 +208,11 @@ def min_dist_difference(dist: dict):
     for i in range(len(wins) - 2):
         if diff is None or (diff > abs(wins[i + 1]) - wins[i]):
             diff = abs(wins[i + 1]) - wins[i]
+    if diff is None:
+        # Fewer than 3 distinct payouts (e.g. two-outcome keno modes):
+        # fall back to the gap between the two values that exist.
+        if len(wins) == 2:
+            diff = abs(wins[1] - wins[0])
+        else:
+            return 0
     return int(round(diff * 100))
