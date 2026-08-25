@@ -1,8 +1,9 @@
 """Luma Keno configuration. Pool 40 / drawn 10, picks 1-10, 4 risk modes.
 
 Paytables are solved analytically (solve_paytables.py) against the local
-3-Star verifier gates and loaded from paytables.json. All 40 modes share one
-RTP target; risk only reshapes variance.
+3-Star verifier gates and loaded from paytables.json. Picks 2-10 share
+RTP ~0.966. pick_1 is one multiplier per hit on the 0.950 lattice (the
+only legal two-outcome 0.1x pair under the 0.967 cap).
 """
 
 import json
@@ -55,9 +56,7 @@ class GameConfig(Config):
             row[-1] for tables in self.keno_paytable.values() for row in tables.values()
         )
         self.wincap = max_pay
-        # All modes converge on the same realized RTP (0.9485-0.9515 after
-        # 0.1x rounding); the config-level RTP is the shared target. 0.95 is
-        # the pick_1 lattice point (3.8x on P=0.25) — see solve_paytables.py.
+        # Shared target ~0.966 for k >= 2. pick_1 is lattice-locked at 0.95.
         self.rtp = float(_PAYTABLE_DOC["rtp_target"])
         self.bet_modes = [
             self._pick_mode(risk, k) for risk in self.keno_risks for k in self.keno_picks

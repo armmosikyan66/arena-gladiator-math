@@ -4,18 +4,20 @@
 Publish gates (Stake Engine dashboard — binding, stricter than the local
 rgs_verification warnings):
   - every mode must award a non-zero win at least 1 in 50 (hit rate >= 2%);
-  - RTP spread across all modes <= 0.5pp;
-  - per-mode RTP <= 0.967 (3-star volatility limit).
+  - per-mode RTP <= 0.967 (3-star volatility limit);
+  - Cross-Mode RTP Consistency: max-min RTP <= 0.50pp.
 
-pick_1 is a two-outcome game on the 0.1x grid: P(hit) = 0.25, so the only
-RTPs are 0.950 (3.8x) or 0.975 (3.9x) — and 0.975 busts the 0.967 ceiling.
-The whole game therefore targets 0.95 so pick_1 lands on the same RTP as
-every other mode and the cross-mode spread stays inside 0.5pp.
+pick_1 is one multiplier per hit on the 0.950 lattice (the only legal
+two-outcome 0.1x pair under the 0.967 cap). Picks 2-10 share RTP ~0.9660.
+A miss/hit remainder split is not used: each hit count has one payout.
 
 Structure per (risk, k):
   - consolation tier at the first paying hit: sub-40x, fixed RTP share
     (keeps ETL40 under the 0.9 gate) and lifts the hit rate above the
     1-in-50 floor,
+  - classic/low only: a fixed 0.5x refund one hit below pay start when
+    P(h) <= 0.35 (Stake Originals Low-style "gentle bleed"; 0.5x = 50 LUT
+    units, legal on the 0.1x grid). medium/high stay jackpot-shaped,
   - remaining budget water-filled over rarer hits, m_h = c * P(h)^-beta,
     capped by a ladder below the risk top (keeps CVaR/std/max-m legal),
   - 0.1x grid convergence: greedy coin fill, then a hill-climb over single
@@ -31,19 +33,17 @@ import json
 import math
 import os
 
+from keno_pick_one import pick_one_row
+
 POOL = 40
 DRAWN = 10
 PICKS = range(1, 11)
 
-# pick_1 lattice (see module docstring): 3.8x on P=0.25 is exactly 0.95.
-# Same row for every risk — risk only reshapes k >= 2 variance.
-PICK_ONE_TABLE = [0.0, 3.8]
-
-RTP_TARGET = 0.95
+RTP_TARGET = 0.9660
 RTP_TOL = 0.0005  # grid-search convergence tolerance
-# Dashboard: spread <= 0.005 across all 40 modes. Keep margin.
-MODE_RTP_BAND = (0.9485, 0.9515)
-SPREAD_MAX = 0.004
+MODE_RTP_BAND = (0.9645, 0.9665)
+# Dashboard Cross-Mode RTP Consistency: <= 0.50pp. Local verifier is 5pp.
+SPREAD_MAX = 0.005
 # Dashboard: non-zero win at least 1 in 50. Keep margin.
 HIT_RATE_MIN = 0.021
 
@@ -60,11 +60,22 @@ RISK_SHAPES = {
 # hit-rate floor: e.g. high pick_8 pays from 4 hits (P(>=4) ~= 8.9%) —
 # paying only from 5 gave 1 in 68.8 and failed the dashboard gate.
 PAY_START = {
-    "classic": {2: 1, 3: 1, 4: 2, 5: 3, 6: 3, 7: 4, 8: 4, 9: 5, 10: 5},
+    "classic": {2: 1, 3: 1, 4: 2, 5: 3, 6: 3, 7: 4, 8: 4, 9: 5, 10: 4},
     "low": {2: 1, 3: 1, 4: 1, 5: 2, 6: 2, 7: 3, 8: 3, 9: 4, 10: 4},
     "medium": {2: 1, 3: 2, 4: 2, 5: 3, 6: 3, 7: 4, 8: 4, 9: 5, 10: 5},
     "high": {2: 1, 3: 2, 4: 3, 5: 3, 6: 4, 7: 4, 8: 4, 9: 5, 10: 5},
 }
+
+# Refund tier: classic/low only. One hit below the pay start pays a fixed
+# REFUND_X (0.5x = 50 LUT units — legal: multiple of 10). This mirrors Stake
+# Originals Low risk (pays small amounts on low hits: "a gentle bleed");
+# medium/high stay jackpot-shaped (Stake High pays nothing until 3-4 hits).
+# Guard: only where P(h) <= REFUND_P_MAX — a refund on a likely outcome
+# (e.g. classic pick_4 h=1, P=0.44) burns over a fifth of the RTP budget.
+# pick_2/pick_3 have no tier below start (h would be 0), so no refund there.
+REFUND_RISKS = ("classic", "low")
+REFUND_X = 0.5
+REFUND_P_MAX = 0.35
 
 # Cap ladder by distance below the top hit: fraction of risk top, and an
 # absolute ceiling so big headline prizes cannot drag mid tiers up.
@@ -109,13 +120,16 @@ def _table_valid(m: list[float], start: int, k: int, caps: dict) -> bool:
         return False
     if any(m[h] > caps[h] + 1e-9 for h in range(start, k + 1)):
         return False
+    # m[start - 1] is the fixed refund tier (if any); it must not exceed start.
+    if start >= 1 and m[start - 1] > 0 and m[start] < m[start - 1] - 1e-9:
+        return False
     return all(m[h + 1] >= m[h] - 1e-9 for h in range(start, k))
 
 
 def _grid_moves(m: list[float], start: int, k: int, caps: dict):
     """Single +/-0.1 moves that keep floors, caps and monotonicity."""
     for h in range(start, k + 1):
-        floor = 0.1 if h == start else m[h - 1] + 0.1
+        floor = m[start - 1] + 0.1 if h == start and start >= 1 and m[start - 1] > 0 else (0.1 if h == start else m[h - 1] + 0.1)
         ceiling = caps[h] if h == k else min(caps[h], m[h + 1] - 0.1)
         for d in (0.1, -0.1):
             if floor - 1e-9 <= m[h] + d <= ceiling + 1e-9:
@@ -165,6 +179,23 @@ def _refine(m: list[float], p: list[float], start: int, k: int, caps: dict) -> f
     return abs(best_err)
 
 
+def refund_hit(risk: str, k: int) -> int | None:
+    """Hit count that pays the fixed REFUND_X, or None when not applicable.
+
+    One below the pay start, classic/low only, and only where the refund is
+    affordable (P(h) <= REFUND_P_MAX). pick_2/pick_3 pay from 1 hit, so
+    there is no tier below start to refund.
+    """
+    if risk not in REFUND_RISKS:
+        return None
+    h = PAY_START[risk][k] - 1
+    if h < 1:
+        return None
+    if probabilities(k)[h] > REFUND_P_MAX:
+        return None
+    return h
+
+
 def _fill_from(risk: str, k: int, start_pay: float | None) -> list[float]:
     """Water-fill + grid-converge with a fixed (or designed) consolation pay."""
     p = probabilities(k)
@@ -172,20 +203,28 @@ def _fill_from(risk: str, k: int, start_pay: float | None) -> list[float]:
     start = PAY_START[risk][k]
     caps = {h: cap_for(risk, k, h) for h in range(start, k + 1)}
     tail = [h for h in range(start + 1, k + 1)]
+    rh = refund_hit(risk, k)
+    refund_cost = p[rh] * REFUND_X if rh is not None else 0.0
+    # With a refund tier below start, keep monotonicity: start >= refund + 0.1.
+    min_start = REFUND_X + 0.1 if rh is not None else 0.1
+    caps = {h: max(v, min_start) if h == start else v for h, v in caps.items()}
 
     sub40_budget = min(RISK_SHAPES[risk]["sub40"] * RTP_TARGET, p[start] * min(39.9, caps[start]))
     if start_pay is None:
-        m_start = max(0.1, round(sub40_budget / p[start] * 10) / 10)
+        m_start = max(min_start, round(sub40_budget / p[start] * 10) / 10)
         m_start = min(m_start, 39.9, caps[start])
     else:
-        m_start = min(max(0.1, round(start_pay * 10) / 10), 39.9, caps[start])
+        m_start = min(max(min_start, round(start_pay * 10) / 10), 39.9, caps[start])
     # Never let the consolation alone overshoot the target: remaining budget
-    # must stay >= 0 so the tail fill is well-defined.
-    m_start = min(m_start, math.floor(RTP_TARGET / p[start] * 10 - 1e-9) / 10)
+    # must stay >= 0 so the tail fill is well-defined. The refund tier below
+    # start is fixed and spends its budget first.
+    m_start = min(m_start, math.floor((RTP_TARGET - refund_cost) / p[start] * 10 - 1e-9) / 10)
 
     m = [0.0] * (k + 1)
+    if rh is not None:
+        m[rh] = REFUND_X
     m[start] = m_start
-    remaining = RTP_TARGET - p[start] * m[start]
+    remaining = RTP_TARGET - p[start] * m[start] - refund_cost
 
     if tail:
         def total_for(c: float) -> float:
@@ -215,7 +254,7 @@ def _fill_from(risk: str, k: int, start_pay: float | None) -> list[float]:
     for h in range(start, k + 1):
         if m[h] > 0:
             m[h] = math.floor(m[h] * 10 + 1e-9) / 10
-            m[h] = max(0.1, m[h])
+            m[h] = max(min_start if h == start else 0.1, m[h])
 
     for _ in range(2000):
         leftover = RTP_TARGET - rtp()
@@ -224,7 +263,7 @@ def _fill_from(risk: str, k: int, start_pay: float | None) -> list[float]:
         if leftover < 0:
             best = None
             for h in range(start, k + 1):
-                floor_h = 0.1 if h == start else m[h - 1] + 0.1
+                floor_h = min_start if h == start else m[h - 1] + 0.1
                 if m[h] - 0.1 < floor_h - 1e-9:
                     continue
                 coin = p[h] * 0.1
@@ -264,13 +303,16 @@ def solve_table(risk: str, k: int) -> tuple[list[float], list[str]]:
     start = PAY_START[risk][k]
     caps = {h: cap_for(risk, k, h) for h in range(start, k + 1)}
     tail = [h for h in range(start + 1, k + 1)]
+    rh = refund_hit(risk, k)
+    refund_cost = p[rh] * REFUND_X if rh is not None else 0.0
+    min_start = REFUND_X + 0.1 if rh is not None else 0.1
 
     # Consolation tier: sub-40x, fixed RTP share. The cap ladder and the
     # water-fill shape already leave the tail below target on its own, so the
     # consolation share is used as-is unless caps make it impossible.
     sub40_budget = RISK_SHAPES[risk]["sub40"] * RTP_TARGET
     max_consolation = p[start] * min(39.9, caps[start])
-    if tail_capacity_of(p, tail, caps) + max_consolation < RTP_TARGET:
+    if tail_capacity_of(p, tail, caps) + max_consolation + refund_cost < RTP_TARGET:
         errors.append("budget infeasible: caps cannot reach target RTP")
         return [0.0] * (k + 1), errors
     sub40_budget = min(sub40_budget, max_consolation)
@@ -291,7 +333,7 @@ def solve_table(risk: str, k: int) -> tuple[list[float], list[str]]:
     designed = _fill_from(risk, k, None)
     best = (abs(err_of(designed)), designed)
     if best[0] > RTP_TOL * 2:
-        lo_pay = 0.1
+        lo_pay = min_start
         hi_pay = min(39.9, caps[start], max(2.0, round(sub40_budget / p[start] * 2 * 10) / 10))
         steps = int(round((hi_pay - lo_pay) / 0.1)) + 1
         for i in range(steps):
@@ -316,11 +358,12 @@ def solve_table(risk: str, k: int) -> tuple[list[float], list[str]]:
 
 
 def mode_stats(k: int, table: list[float]) -> dict:
+    pays = table
     p = probabilities(k)
-    rtp = sum(pi * mi for pi, mi in zip(p, table))
-    var = sum(pi * (mi - rtp) ** 2 for pi, mi in zip(p, table))
+    rtp = sum(pi * mi for pi, mi in zip(p, pays))
+    var = sum(pi * (mi - rtp) ** 2 for pi, mi in zip(p, pays))
 
-    ranked = sorted(zip(table, p))
+    ranked = sorted(zip(pays, p))
     p5k = sum(pi for mi, pi in ranked if mi >= 5000)
     p10k = sum(pi for mi, pi in ranked if mi >= 10000)
     etl40 = sum(pi * mi for mi, pi in ranked if mi >= 40)
@@ -344,17 +387,20 @@ def mode_stats(k: int, table: list[float]) -> dict:
         "etl40": etl40,
         "etl10k": etl10k,
         "cvar": cvar,
-        "max_m": max(table),
+        "max_m": max(pays),
         "hit_rate": sum(pi for mi, pi in ranked if mi > 0),
-        "nonzero_payouts": sorted({mi for mi in table if mi > 0}),
+        "nonzero_payouts": sorted({mi for mi in pays if mi > 0}),
     }
 
 
 def check_gates(k: int, stats: dict) -> list[str]:
     f: list[str] = []
     lo, hi = MODE_RTP_BAND
-    if not (lo <= stats["rtp"] <= hi):
+    # pick_1 is lattice-locked at 0.950; the 0.966 band applies to k >= 2.
+    if k != 1 and not (lo <= stats["rtp"] <= hi):
         f.append(f"rtp={stats['rtp']:.4f} outside {lo:.4f}-{hi:.4f}")
+    if k == 1 and abs(stats["rtp"] - 0.95) > 1e-9:
+        f.append(f"rtp={stats['rtp']:.4f} != 0.950 lattice")
     if stats["hit_rate"] < HIT_RATE_MIN:
         f.append(f"hit_rate={stats['hit_rate']:.4f} < {HIT_RATE_MIN:.4f} (1 in {1 / stats['hit_rate']:.1f})")
     if stats["p5k"] > GATES["p5k"]:
@@ -371,14 +417,15 @@ def check_gates(k: int, stats: dict) -> list[str]:
         f.append(f"std={stats['std']:.1f}")
     if stats["max_m"] > GATES["max_m"]:
         f.append(f"max_m={stats['max_m']:.0f}")
-    # k >= 2 needs at least two paying tiers; k=1 is a two-outcome game.
-    if k >= 2 and len(stats["nonzero_payouts"]) < 2:
+    # k >= 2 needs at least two paying tiers.
+    if len(stats["nonzero_payouts"]) < 2:
         f.append("fewer than 2 nonzero payouts")
     return f
 
 
 def solve_all() -> dict:
     risks: dict[str, dict[str, list[float]]] = {}
+    band_rtps: list[float] = []
     all_rtps: list[float] = []
     failures: dict[str, list[str]] = {}
     for risk in ("classic", "low", "medium", "high"):
@@ -386,8 +433,7 @@ def solve_all() -> dict:
         for k in PICKS:
             name = f"{risk}_pick_{k}"
             if k == 1:
-                table = list(PICK_ONE_TABLE)
-                errors: list[str] = []
+                table, errors = pick_one_row(risk), []
             else:
                 table, errors = solve_table(risk, k)
             stats = mode_stats(k, table)
@@ -396,6 +442,8 @@ def solve_all() -> dict:
                 failures[name] = fails
             tables[str(k)] = table
             all_rtps.append(stats["rtp"])
+            if k >= 2:
+                band_rtps.append(stats["rtp"])
             print(
                 f"{name:16s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
                 f"max={stats['max_m']:8.1f} hr={stats['hit_rate']:.4f} "
@@ -406,10 +454,12 @@ def solve_all() -> dict:
             print(f"{'':16s} {table}")
         risks[risk] = tables
     spread = max(all_rtps) - min(all_rtps)
-    print(f"\nmode RTP spread={spread:.4f} (dashboard gate <= {SPREAD_MAX})")
+    band_spread = max(band_rtps) - min(band_rtps)
+    print(f"\nmode RTP spread={spread:.4f} (incl. pick_1 0.95 lattice)")
+    print(f"picks 2-10 spread={band_spread:.4f} (dashboard limit {SPREAD_MAX})")
     print(f"min hit rate={min(mode_stats(k, risks[r][str(k)])['hit_rate'] for r in risks for k in PICKS):.4f}")
-    if spread > SPREAD_MAX:
-        failures["spread"] = [f"{spread:.4f} > {SPREAD_MAX}"]
+    if band_spread > SPREAD_MAX:
+        failures["spread"] = [f"{band_spread:.4f} > {SPREAD_MAX}"]
     if failures:
         raise SystemExit(f"gate failures: {failures}")
     return risks

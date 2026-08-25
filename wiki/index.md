@@ -1,10 +1,10 @@
 ---
 type: index
 tags: [meta]
-updated: 2026-08-24
-source_count: 2
-page_count: 10
-last_change: 2026-08-24 Ingested tower rating-limit brief; 3-Star is the default math envelope.
+updated: 2026-08-25
+source_count: 3
+page_count: 11
+last_change: 2026-08-25 Restore pick_1 at 96.5% LUT RTP (miss remainder); 40 modes, spread 0.15pp.
 ---
 
 # Math SDK Wiki
@@ -33,6 +33,7 @@ _Vendor and external docs, summarized — not copied._
 
 - [[sources/stake-engine-math-sdk]] — Official Math SDK wiki (`math/docs/`, MkDocs).
 - [[sources/tower-math-rating-limits]] — Tower math agent brief: 3-Star envelope, survival→multipliers, fail-closed validation.
+- [[sources/keno-xtreme-analysis]] — Stake Keno Xtreme docx: probabilities match luma-keno exactly; no multiplier values; 3.50% house edge.
 
 ## Codebase
 

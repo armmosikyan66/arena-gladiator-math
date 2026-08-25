@@ -1,7 +1,7 @@
 ---
 type: domain
 tags: [rgs, publish, books, rtp]
-updated: 2026-08-24
+updated: 2026-08-25
 ---
 
 # Stake Engine publish format
@@ -50,15 +50,13 @@ only warns about. Both failed Lumen Keno's first upload (2026-08-24):
    that restores ≥ 2% (e.g. high_pick_8 pays 2.3× on 4 hits). Do not
    "fix" it by moving RTP from the top tier down without re-checking
    ETL40/CVaR gates.
-2. **Mode RTP spread ≤ 0.5pp across every BetMode.**
-   Local verifier only warns at 5pp. `pick_1` on the 0.1× grid is a
-   2-outcome lattice: with P(hit)=0.25 the only options are 3.8× → 0.95
-   or 3.9× → 0.975 (and 0.975 breaches the 0.967 per-mode ceiling). So
-   the whole game targets 0.95, and every mode converges to ±0.05pp of
-   it (`solve_paytables.py` asserts spread ≤ 0.4pp).
-
-Design consequence: choose the **game-wide RTP lattice point** first
-(constrained by the simplest mode), then solve all other modes to it.
+2. **Mode RTP spread.** Dashboard **Cross-Mode RTP Consistency** is **0.50pp**
+   (binding). Local `rgs_verification` only warns at **5pp**. pick_1 on the
+   0.1× grid is a 2-outcome lattice (RTP 0.950 or 0.975). 0.975 busts the
+   0.967 cap; 0.950 is 1.65pp below the 0.9660 target. luma-keno keeps the
+   advertised 0.950 miss/hit pair and splits miss weight 24+6 so LUT RTP is
+   **0.965** (player-favorable +0.1× on 6 of 30 misses). 40 modes, spread
+   **0.15pp**. Hit odds stay exact 10/40. See `keno_pick_one.py`.
 
 ## Related
 

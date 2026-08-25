@@ -85,7 +85,9 @@ if __name__ == "__main__":
     profiling = False
 
     num_sim_args = {
-        f"{risk}_pick_{k}": k + 1 for risk in ("classic", "low", "medium", "high") for k in range(1, 11)
+        f"{risk}_pick_{k}": k + 1
+        for risk in ("classic", "low", "medium", "high")
+        for k in range(1, 11)
     }
 
     run_conditions = {

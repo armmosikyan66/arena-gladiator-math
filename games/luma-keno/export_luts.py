@@ -13,7 +13,6 @@ asserted so the embedded artifact can never drift from the published math.
 from __future__ import annotations
 
 import json
-import math
 import os
 from math import comb
 
@@ -40,9 +39,9 @@ def export_mode(mode: str, k: int, paytable: list[float]) -> dict:
             sim_id, weight, payout = line.strip().split(",")
             hits = criteria[sim_id]
             payout_int = int(payout)
-            assert payout_int == int(round(paytable[hits] * 100)), (
-                f"{mode}: LUT payout {payout_int} != paytable[{hits}] "
-                f"{int(round(paytable[hits] * 100))}"
+            expected = int(round(paytable[hits] * 100))
+            assert payout_int == expected, (
+                f"{mode}: LUT payout {payout_int} != paytable[{hits}] {expected}"
             )
             rows.append(
                 {
@@ -56,7 +55,6 @@ def export_mode(mode: str, k: int, paytable: list[float]) -> dict:
     rows.sort(key=lambda r: r["id"])
     assert len(rows) == k + 1, f"{mode}: expected {k + 1} books, found {len(rows)}"
 
-    # Weights must be the exact hypergeometric counts: sum = C(40, k).
     drawn, pool = 10, 40
     total = sum(r["weight"] for r in rows)
     assert total == comb(pool, k), f"{mode}: weight sum {total} != C({pool},{k})"
@@ -64,14 +62,11 @@ def export_mode(mode: str, k: int, paytable: list[float]) -> dict:
     hits_seen = {r["hits"] for r in rows}
     assert hits_seen == set(range(k + 1)), f"{mode}: missing hit rows"
 
-    weight_sum = 0
     for r in rows:
         expect = comb(drawn, r["hits"]) * comb(pool - drawn, k - r["hits"])
         assert r["weight"] == expect, (
             f"{mode} hits={r['hits']}: weight {r['weight']} != {expect}"
         )
-        weight_sum += r["weight"]
-    assert weight_sum == comb(pool, k)
 
     return {
         "cost": 1.0,
