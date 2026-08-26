@@ -15,6 +15,7 @@ from keno_pick_one import (
     book_count_for_picks,
     parse_mode_name,
     parse_spin_criteria,
+    paying_from_table,
     spin_weight,
 )
 from src.state.run_sims import create_books
@@ -42,7 +43,8 @@ def write_exact_lookup_tables(gamestate: GameState) -> None:
                 sim_id, criteria, *_ = line.strip().split(",")
                 spin = parse_spin_criteria(criteria)
                 if earn:
-                    weight = spin_weight(k, spin, risk)
+                    paying = paying_from_table(gamestate.config.keno_earn_paytable[risk][k])
+                    weight = spin_weight(k, spin, risk, paying=paying)
                 else:
                     weight = base_hit_weight(k, spin.main_hits)
                 rows.append(f"{sim_id},{weight},{payouts[sim_id]}\n")
@@ -91,11 +93,15 @@ if __name__ == "__main__":
     compression = True
     profiling = False
 
+    config = GameConfig()
+    gamestate = GameState(config)
+
     num_sim_args = {}
     for risk in ("classic", "low", "medium", "high"):
         for k in range(1, 11):
             num_sim_args[f"{risk}_pick_{k}"] = k + 1
-            num_sim_args[f"{risk}_pick_{k}_earn"] = book_count_for_picks(k)
+            paying = paying_from_table(config.keno_earn_paytable[risk][k])
+            num_sim_args[f"{risk}_pick_{k}_earn"] = book_count_for_picks(k, paying=paying)
 
     run_conditions = {
         "run_sims": True,
@@ -103,9 +109,6 @@ if __name__ == "__main__":
         "run_analysis": False,
         "upload_data": False,
     }
-
-    config = GameConfig()
-    gamestate = GameState(config)
 
     if run_conditions["run_sims"] and num_sim_args:
         create_books(

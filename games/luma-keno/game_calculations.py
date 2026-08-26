@@ -5,6 +5,7 @@ from math import comb
 from keno_pick_one import (
     parse_mode_name,
     parse_spin_criteria,
+    paying_from_table,
     settle_pay as settle_amount,
     spin_outcomes,
     spin_weight,
@@ -68,9 +69,10 @@ class GameCalculations(Executables):
                 self.hit_weight(k, h) * self.pay_for(risk, k, h, False)
                 for h in range(k + 1)
             ) / total
+        paying = paying_from_table(self.pay_row_for(risk, k, True))
         total = comb(self.config.keno_pool, k) * self.config.keno_drawn * weight_scale()
         return sum(
-            spin_weight(k, spin, risk)
+            spin_weight(k, spin, risk, paying=paying)
             * self.settle_pay(risk, k, spin.total_hits, spin.lumen_hit, True, spin.pulse)
-            for spin in spin_outcomes(k, self.config.keno_drawn)
+            for spin in spin_outcomes(k, self.config.keno_drawn, paying)
         ) / total

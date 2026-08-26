@@ -17,6 +17,7 @@ from keno_pick_one import (
     lumen_boost_applied,
     pulse_boost_applied,
     parse_spin_criteria,
+    paying_from_table,
     settle_pay,
     spin_weight,
     weight_scale,
@@ -48,9 +49,10 @@ def export_mode(mode: str, k: int, risk: str, paytable: list[float], earn: bool)
             spin = parse_spin_criteria(criteria[sim_id])
             payout_int = int(payout)
             if earn:
+                paying = paying_from_table(paytable)
                 base = paytable[spin.total_hits]
                 expected = int(round(settle_pay(base, spin.lumen_hit, spin.pulse, risk) * 100))
-                expect_weight = spin_weight(k, spin, risk)
+                expect_weight = spin_weight(k, spin, risk, paying=paying)
                 after_lumen = lumen_boost_applied(base, spin.lumen_hit, risk)
             else:
                 base = paytable[spin.main_hits]
@@ -85,7 +87,9 @@ def export_mode(mode: str, k: int, risk: str, paytable: list[float], earn: bool)
             )
 
     rows.sort(key=lambda r: r["id"])
-    expect_n = book_count_for_picks(k, DRAWN) if earn else k + 1
+    expect_n = (
+        book_count_for_picks(k, DRAWN, paying_from_table(paytable)) if earn else k + 1
+    )
     assert len(rows) == expect_n, f"{mode}: expected {expect_n} books, found {len(rows)}"
 
     total = sum(r["weight"] for r in rows)

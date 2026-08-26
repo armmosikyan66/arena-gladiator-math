@@ -14,6 +14,7 @@ from keno_pick_one import (
     hit_criteria_base,
     hit_criteria_name,
     mode_name,
+    paying_from_table,
     spin_outcomes,
 )
 from src.config.betmode import BetMode
@@ -102,7 +103,8 @@ class GameConfig(Config):
         )
 
     def _earn_mode(self, risk: str, k: int) -> BetMode:
-        outcomes = spin_outcomes(k, self.keno_drawn)
+        paying = paying_from_table(self.keno_earn_paytable[risk][k])
+        outcomes = spin_outcomes(k, self.keno_drawn, paying)
         n = len(outcomes)
         return BetMode(
             name=mode_name(risk, k, True),

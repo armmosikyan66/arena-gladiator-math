@@ -192,34 +192,65 @@ def extra_hit_js(k: int, main_hits: int) -> list[int]:
     return js or [0]
 
 
-def extras_forced_reason(k: int, main_hits: int, lumen_hit: bool) -> str | None:
+def paying_from_table(table: list[float]) -> frozenset[int]:
+    return frozenset(h for h, value in enumerate(table) if float(value) > 0)
+
+
+def extras_forced_reason(
+    k: int,
+    main_hits: int,
+    lumen_hit: bool,
+    paying: frozenset[int] | None = None,
+) -> str | None:
+    """Forced extras. Catching Lumen only opens if the main ten already pays.
+
+    `paying` is advertised hit counts with a >0 row. None treats every hit as
+    paying (old lumen-always-open behavior). A dead-table Lumen catch must not
+    fall through to luck.
+    """
     if lumen_hit:
-        return "lumen"
+        if paying is None or main_hits in paying:
+            return "lumen"
+        return None
     if k >= 4 and main_hits == k - 1:
         return "near"
     return None
 
 
-def extra_outcomes(k: int, main_hits: int, lumen_hit: bool) -> list[tuple[bool, str, int]]:
-    """Earn extras: first match lumen → near-miss → luck (main_hits >= 2).
+def extra_outcomes(
+    k: int,
+    main_hits: int,
+    lumen_hit: bool,
+    paying: frozenset[int] | None = None,
+) -> list[tuple[bool, str, int]]:
+    """Earn extras: first match lumen (paying main) → near-miss → luck.
 
     Luck weight is EXTRA_CHANCE_PCT[risk] / 100 of the leftover after Lumen
-    and near-miss. It is 0 at pick_1 (cannot have two main hits).
+    and near-miss. It is 0 at pick_1 (cannot have two main hits). Catching
+    Lumen on a 0× main row keeps extras closed and does not roll luck.
     """
-    forced = extras_forced_reason(k, main_hits, lumen_hit)
+    forced = extras_forced_reason(k, main_hits, lumen_hit, paying)
     js = extra_hit_js(k, main_hits)
     if forced:
         return [(True, forced, j) for j in js]
+    if lumen_hit:
+        return [(False, "none", 0)]
     if main_hits >= 2:
         return [(False, "none", 0)] + [(True, "luck", j) for j in js]
     return [(False, "none", 0)]
 
 
-def spin_outcomes(k: int, drawn: int = DRAWN) -> list[SpinCriteria]:
+def spin_outcomes(
+    k: int,
+    drawn: int = DRAWN,
+    paying: frozenset[int] | None = None,
+) -> list[SpinCriteria]:
     out: list[SpinCriteria] = []
     for main_hits in range(k + 1):
         for lumen_hit in lumen_books_for_hits(main_hits, drawn):
-            for extras, reason, extra_hits in extra_outcomes(k, main_hits, lumen_hit):
+            for extras, reason, extra_hits in extra_outcomes(
+                k, main_hits, lumen_hit, paying
+            ):
                 for pulse in (False, True):
                     out.append(
                         SpinCriteria(main_hits, lumen_hit, extras, reason, extra_hits, pulse)
@@ -227,8 +258,10 @@ def spin_outcomes(k: int, drawn: int = DRAWN) -> list[SpinCriteria]:
     return out
 
 
-def book_count_for_picks(k: int, drawn: int = DRAWN) -> int:
-    return len(spin_outcomes(k, drawn))
+def book_count_for_picks(
+    k: int, drawn: int = DRAWN, paying: frozenset[int] | None = None
+) -> int:
+    return len(spin_outcomes(k, drawn, paying))
 
 
 def hit_criteria_base(hits: int) -> str:
@@ -249,6 +282,7 @@ def spin_weight(
     risk: str,
     drawn: int = DRAWN,
     rest: int = REST,
+    paying: frozenset[int] | None = None,
 ) -> int:
     base = (
         comb(drawn, spin.main_hits)
@@ -259,11 +293,13 @@ def spin_weight(
     pair = extra_pair_weight(k, spin.main_hits, spin.extra_hits)
     chance = EXTRA_CHANCE_PCT[risk]
     pulse_part = PULSE_CHANCE_PCT if spin.pulse else (CHANCE_DENOM - PULSE_CHANCE_PCT)
-    forced = extras_forced_reason(k, spin.main_hits, spin.lumen_hit)
+    forced = extras_forced_reason(k, spin.main_hits, spin.lumen_hit, paying)
     if not spin.extras:
         if forced:
             raise ValueError(f"forced extras closed: {spin}")
-        if spin.main_hits >= 2:
+        if spin.lumen_hit:
+            extra_part = CHANCE_DENOM * pair_total
+        elif spin.main_hits >= 2:
             extra_part = (CHANCE_DENOM - chance) * pair_total
         else:
             extra_part = CHANCE_DENOM * pair_total
@@ -319,30 +355,32 @@ def effective_coeff(risk: str, k: int, paying: frozenset[int]) -> tuple[float, .
     """RTP = sum_h coeff[h] * advertised[h] when advertised[h] > 0 iff h in paying.
 
     Lumen and Pulse are priced in: a paying row that is caught contributes
-    boost * P; Pulse ×2 on 10% of Earn books.
+    boost * P; Pulse ×2 on 10% of Earn books. Extras from Lumen only open
+    when main_hits is in `paying`.
     """
     total = weight_total(k)
     boost = LUMEN_BOOST[risk]
     coeff = [0.0] * (k + 1)
-    for spin in spin_outcomes(k):
+    for spin in spin_outcomes(k, paying=paying):
         hits = spin.total_hits
         if hits not in paying:
             continue
         factor = boost if spin.lumen_hit else 1.0
         if spin.pulse:
             factor *= PULSE_BOOST
-        coeff[hits] += spin_weight(k, spin, risk) * factor / total
+        coeff[hits] += spin_weight(k, spin, risk, paying=paying) * factor / total
     return tuple(coeff)
 
 
 def settled_pairs(risk: str, k: int, table: list[float]) -> list[tuple[int, float]]:
     """(weight, settled multiplier) for every spin book."""
+    paying = paying_from_table(table)
     return [
         (
-            spin_weight(k, spin, risk),
+            spin_weight(k, spin, risk, paying=paying),
             settle_pay(table[spin.total_hits], spin.lumen_hit, spin.pulse, risk),
         )
-        for spin in spin_outcomes(k)
+        for spin in spin_outcomes(k, paying=paying)
     ]
 
 
@@ -417,6 +455,12 @@ assert all(pick_one_std(risk) > STD_MIN for risk in PICK_ONE_MISS)
 assert all(pick_one_std_earn(risk) > STD_MIN for risk in LUMEN_BOOST)
 assert abs(settled_rtp("classic", 1, pick_one_row_earn("classic")) - 0.95) <= 0.0025
 assert book_count_for_picks(1) == 6
+CLASSIC_8_PAYING = frozenset({3, 4, 5, 6, 7, 8})
+assert extras_forced_reason(8, 2, True, CLASSIC_8_PAYING) is None
+assert extra_outcomes(8, 2, True, CLASSIC_8_PAYING) == [(False, "none", 0)]
+assert extras_forced_reason(8, 3, True, CLASSIC_8_PAYING) == "lumen"
+assert extra_outcomes(8, 2, False, CLASSIC_8_PAYING)[0] == (False, "none", 0)
+assert any(reason == "luck" for _, reason, _ in extra_outcomes(8, 2, False, CLASSIC_8_PAYING))
 assert lumen_hit_factor(0, False) == 10
 assert lumen_hit_factor(3, True) == 3
 assert extra_pair_weight(5, 5, 0) == comb(REST, EXTRA_N)
@@ -434,3 +478,7 @@ assert lumen_boost_applied(2.6, True, "medium") == 2.0
 assert pulse_boost_applied(5.2, True) == 2.0
 assert sum(spin_weight(1, spin, "classic") for spin in spin_outcomes(1)) == comb(40, 1) * DRAWN * weight_scale()
 assert sum(spin_weight(5, spin, "classic") for spin in spin_outcomes(5)) == comb(40, 5) * DRAWN * weight_scale()
+assert sum(
+    spin_weight(8, spin, "classic", paying=CLASSIC_8_PAYING)
+    for spin in spin_outcomes(8, paying=CLASSIC_8_PAYING)
+) == comb(40, 8) * DRAWN * weight_scale()
