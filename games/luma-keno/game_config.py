@@ -66,7 +66,7 @@ class GameConfig(Config):
         self.keno_earn_paytable = _tables("earn")
         off_max = max(max(row) for tables in self.keno_paytable.values() for row in tables.values())
         earn_max = max(
-            round(max(row) * LUMEN_BOOST[risk] * PULSE_BOOST, 1)
+            round(max(row) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1)
             for risk, tables in self.keno_earn_paytable.items()
             for row in tables.values()
         )
@@ -110,7 +110,7 @@ class GameConfig(Config):
             name=mode_name(risk, k, True),
             cost=1.0,
             rtp=self.rtp,
-            max_win=round(max(self.keno_earn_paytable[risk][k]) * LUMEN_BOOST[risk] * PULSE_BOOST, 1),
+            max_win=round(max(self.keno_earn_paytable[risk][k]) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1),
             auto_close_disabled=False,
             is_feature=True,
             is_buybonus=False,

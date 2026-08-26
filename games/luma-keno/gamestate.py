@@ -34,7 +34,7 @@ class GameState(GameStateOverride):
                     self.pay_row_for(risk, k, True),
                     LUMEN_BOOST[risk],
                     True,
-                    PULSE_BOOST,
+                    PULSE_BOOST[risk],
                 )
                 keno_catch_event(
                     self,
@@ -46,7 +46,7 @@ class GameState(GameStateOverride):
                     REASON_TO_EVENT[spin.extra_reason],
                     spin.extra_hits,
                     lumen_boost_applied(base, spin.lumen_hit, risk),
-                    pulse_boost_applied(after_lumen, spin.pulse),
+                    pulse_boost_applied(after_lumen, spin.pulse, risk),
                 )
             else:
                 hits = spin.main_hits

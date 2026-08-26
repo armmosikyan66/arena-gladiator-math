@@ -14,8 +14,9 @@ rgs_verification warnings):
     and fails the equality gate).
 
 Caps and the sub-40 consolation are on **settled** payouts (after Lumen
-and Pulse ×2) so ETL40 / CVaR stay legal. Advertised tops are
-settled_cap / (LUMEN_BOOST × PULSE_BOOST).
+and Pulse) so ETL40 / CVaR stay legal. Advertised tops are
+settled_cap / (LUMEN_BOOST × PULSE_BOOST[risk]). Pulse is ×2 except
+medium ×3.
 
 Structure per (risk, k):
   - consolation tier at the first paying hit: settled sub-40x, fixed RTP share
@@ -144,12 +145,12 @@ def pay_coeff(risk: str, k: int) -> list[float]:
 
 def advertised_cap(risk: str, k: int, h: int) -> float:
     """Advertised ceiling so settled prize (× Lumen × Pulse) stays under cap_for."""
-    return math.floor(cap_for(risk, k, h) / (LUMEN_BOOST[risk] * PULSE_BOOST) * 10 + 1e-9) / 10
+    return math.floor(cap_for(risk, k, h) / (LUMEN_BOOST[risk] * PULSE_BOOST[risk]) * 10 + 1e-9) / 10
 
 
 def consolation_cap(risk: str) -> float:
     """Keep settled consolation under 40× so it does not load ETL40."""
-    return math.floor(39.9 / (LUMEN_BOOST[risk] * PULSE_BOOST) * 10 + 1e-9) / 10
+    return math.floor(39.9 / (LUMEN_BOOST[risk] * PULSE_BOOST[risk]) * 10 + 1e-9) / 10
 
 
 def tail_capacity_of(p: list[float], tail: list[int], caps: dict) -> float:

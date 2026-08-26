@@ -39,8 +39,14 @@ EXTRA_CHANCE_PCT = {
     "medium": 7,
     "high": 4,
 }
-# Earn-only: one round Pulse ×2, independent of extras. Off never rolls it.
-PULSE_BOOST = 2.0
+# Earn-only: one round Pulse, independent of extras. Off never rolls it.
+# Classic/low/high ×2; medium ×3. Same 10% chance on every risk.
+PULSE_BOOST = {
+    "classic": 2.0,
+    "low": 2.0,
+    "medium": 3.0,
+    "high": 2.0,
+}
 PULSE_CHANCE_PCT = 10
 LUMEN_BOOST = {
     "classic": 2.0,
@@ -322,16 +328,16 @@ def lumen_pay(base: float, lumen_hit: bool, risk: str) -> float:
     return round(float(base), 1)
 
 
-def pulse_pay(amount: float, pulse: bool) -> float:
+def pulse_pay(amount: float, pulse: bool, risk: str) -> float:
     """Paying table × Pulse. Pulse does not rescue a 0× row."""
     if pulse and amount > 0:
-        return round(float(amount) * PULSE_BOOST, 1)
+        return round(float(amount) * PULSE_BOOST[risk], 1)
     return round(float(amount), 1)
 
 
 def settle_pay(base: float, lumen_hit: bool, pulse: bool, risk: str) -> float:
     """Table × Lumen × Pulse. Neither bonus rescues a 0× row."""
-    return pulse_pay(lumen_pay(base, lumen_hit, risk), pulse)
+    return pulse_pay(lumen_pay(base, lumen_hit, risk), pulse, risk)
 
 
 def lumen_boost_applied(base: float, lumen_hit: bool, risk: str) -> float:
@@ -340,9 +346,9 @@ def lumen_boost_applied(base: float, lumen_hit: bool, risk: str) -> float:
     return 1.0
 
 
-def pulse_boost_applied(amount: float, pulse: bool) -> float:
+def pulse_boost_applied(amount: float, pulse: bool, risk: str) -> float:
     if pulse and amount > 0:
-        return PULSE_BOOST
+        return PULSE_BOOST[risk]
     return 1.0
 
 
@@ -355,8 +361,8 @@ def effective_coeff(risk: str, k: int, paying: frozenset[int]) -> tuple[float, .
     """RTP = sum_h coeff[h] * advertised[h] when advertised[h] > 0 iff h in paying.
 
     Lumen and Pulse are priced in: a paying row that is caught contributes
-    boost * P; Pulse ×2 on 10% of Earn books. Extras from Lumen only open
-    when main_hits is in `paying`.
+    boost * P; Pulse (×2, or ×3 on medium) on 10% of Earn books. Extras
+    from Lumen only open when main_hits is in `paying`.
     """
     total = weight_total(k)
     boost = LUMEN_BOOST[risk]
@@ -367,7 +373,7 @@ def effective_coeff(risk: str, k: int, paying: frozenset[int]) -> tuple[float, .
             continue
         factor = boost if spin.lumen_hit else 1.0
         if spin.pulse:
-            factor *= PULSE_BOOST
+            factor *= PULSE_BOOST[risk]
         coeff[hits] += spin_weight(k, spin, risk, paying=paying) * factor / total
     return tuple(coeff)
 
@@ -470,12 +476,14 @@ assert parse_spin_criteria("hits_3_lumen_1_extra_1_lumen_1_pulse_1") == SpinCrit
 )
 assert lumen_pay(2.6, True, "classic") == 5.2
 assert settle_pay(2.6, True, True, "classic") == 10.4
+assert settle_pay(2.6, True, True, "medium") == 15.6
 assert lumen_pay(0.0, True, "high") == 0.0
-assert pulse_pay(0.0, True) == 0.0
+assert pulse_pay(0.0, True, "medium") == 0.0
 assert lumen_pay(2.6, False, "classic") == 2.6
 assert lumen_boost_applied(0.0, True, "high") == 1.0
 assert lumen_boost_applied(2.6, True, "medium") == 2.0
-assert pulse_boost_applied(5.2, True) == 2.0
+assert pulse_boost_applied(5.2, True, "classic") == 2.0
+assert pulse_boost_applied(5.2, True, "medium") == 3.0
 assert sum(spin_weight(1, spin, "classic") for spin in spin_outcomes(1)) == comb(40, 1) * DRAWN * weight_scale()
 assert sum(spin_weight(5, spin, "classic") for spin in spin_outcomes(5)) == comb(40, 5) * DRAWN * weight_scale()
 assert sum(

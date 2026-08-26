@@ -77,7 +77,7 @@ def export_mode(mode: str, k: int, risk: str, paytable: list[float], earn: bool)
                     "extraHits": spin.extra_hits if earn and spin.extras else 0,
                     "extraReason": REASON_TO_EVENT[spin.extra_reason] if earn else None,
                     "pulse": pulse_boost_applied(
-                        settle_pay(base, spin.lumen_hit, False, risk), spin.pulse
+                        settle_pay(base, spin.lumen_hit, False, risk), spin.pulse, risk
                     )
                     if earn
                     else 1.0,
