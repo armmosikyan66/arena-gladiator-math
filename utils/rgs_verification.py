@@ -176,7 +176,28 @@ def get_num_non_zero_payouts(book_int_payouts) -> None:
 
 def verify_mode_volatility(name: str, MathStats: object) -> dict:
     """Check math betlevel volatility limits. Returns dict of violated attributes."""
-    mode_limits = {"prob5k": 1e-2, "prob10k": 0.5e-2, "etl40b": 0.9, "etl10k": 0.8, "cvar": 800, "rtp": 0.967}
+    # `max_win` was already computed by get_lut_statistics and stored on the
+    # stats object, but was never listed here — so the dashboard's Max Payout
+    # Multiplier had no local equivalent and luma-keno's buy100 ladder passed
+    # this verifier at 490,000x the base bet, then failed the dashboard on 15
+    # modes.
+    #
+    # Units: `max_win` is the raw LUT payout, which is the multiplier x 100, so
+    # the 3-star limit of 100,000x is 10,000,000 here. Deliberately *not*
+    # normalized by bet_cost, unlike the moments below: this gate is measured
+    # against the base bet, which is exactly why a cost-100 buy mode can breach
+    # it while every per-cost metric looks fine. 2-star is 50,000x (5,000,000
+    # raw); a mode above that is simply outside the 2-star volatility envelope
+    # rather than broken, so the looser 3-star figure is the one enforced.
+    mode_limits = {
+        "prob5k": 1e-2,
+        "prob10k": 0.5e-2,
+        "etl40b": 0.9,
+        "etl10k": 0.8,
+        "cvar": 800,
+        "rtp": 0.967,
+        "max_win": 100_000 * 100,
+    }
     violated_attributes = {}
 
     for key, limit in mode_limits.items():
@@ -201,6 +222,17 @@ def get_lut_statistics(
     p5k, p10k, etl10k, etl40, cvarp01 = get_etl_cvar_p5k_10k_vales(
         win_distribution, bet_cost, sum(list(win_distribution.values()))
     )
+    # `get_etl_cvar_p5k_10k_vales` returns etl10k and etl40b in raw payout units
+    # while normalizing everything beside them (`cvar / bet_cost`, `p5k *
+    # prob_scale`, and `std / bet_cost` in get_distribution_moments). The
+    # etl40b limit of 0.9 is a fraction of the wager, so on a buy mode the
+    # un-normalized value is inflated by the cost multiple and no buy-bonus mode
+    # can pass: our buy10 ladder reported 2.83 against 0.9 on an etl40b that is
+    # 0.283 per unit staked. Normalizing here rather than in the shared helper
+    # keeps the vendored function byte-identical to upstream.
+    if bet_cost:
+        etl40 /= bet_cost
+        etl10k /= bet_cost
     MathStats = WinStatistics(
         win_distribution=win_distribution,
         num_events=num_events,

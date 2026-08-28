@@ -2,6 +2,67 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-08-28] fix | high_pick_6 rated Extreme; cap its top row (`TOP_OVERRIDE`)
+
+- summary: wiki/domain/stake-rating-limits.md
+- touched: games/luma-keno/solve_paytables.py, wiki/domain/stake-rating-limits.md,
+  wiki/codebase/luma-keno.md
+- notes: Dashboard rated `high_pick_6` (Off) `VOLATILITY 25.73 — EXTREME`. New
+  fact: the panel emits a **categorical rating** as well as the numeric gate, and
+  25.73 is only half the 2-Star stddev ceiling of 50 — so passing the gate does
+  not mean passing the rating.
+  Cause is structural, not a bad ladder. A top row contributes `p(top) · m²`; `p`
+  falls ~15× per pick while the ceiling rises, so the product peaks mid-ladder —
+  94% of variance at pick 6, 56% at pick 7, 4% at pick 8. Pick 6 is the only place
+  where the ceiling is large *and* still probable enough to matter.
+  Fix: `TOP_OVERRIDE[("high", 6)] = 2000.0`, keyed `(risk, k)` and applied in
+  `cap_for`. Not via `RISK_SHAPES["high"]["top"]`, which is shared by every pick
+  and would have dragged picks 7–10 down from 4,900× too.
+  2,000× lands std 16.40, between pick_7 (16.58) and pick_9 (16.11) — matching a
+  ladder the dashboard already accepts rather than a guessed threshold. Moves 2 of
+  160 modes (off 25.73→16.40, earn 15.99→14.55); buy10/buy100 already solved under
+  the new ceiling. Hit rate unchanged at 0.1528, RTP 0.9649, spread still 0.30pp,
+  0 gate failures, 160/160 verify clean.
+- ⚠️ unverified: the Extreme/High threshold is published nowhere (not verif.md,
+  not the SDK docs — the SDK's `min_m2m`/`max_m2m` is a different quantity). One
+  data point pinned: 25.73 → Extreme. Nothing at 11–18.3 was flagged, so the
+  boundary is in (18.3, 25.73]. If a later upload flags a mode in that range,
+  narrow it here rather than re-deriving.
+
+## [2026-08-28] fix | Cap buy-chip max payout (dashboard Max Payout Multiplier)
+
+- summary: wiki/domain/stake-rating-limits.md
+- touched: games/luma-keno/solve_paytables.py, utils/rgs_verification.py,
+  wiki/domain/stake-rating-limits.md, wiki/codebase/luma-keno.md
+- notes: Stake dashboard rejected 15 `_buy100` modes at 490,000x against 50,000
+  (2-Star) and 9 against 100,000 (3-Star). Cause is unit scope, not a bad
+  ladder: the gate is measured against the **base bet** and is the only gate not
+  normalized by `bet_cost`, so scaling buy rows by cost on export multiplies the
+  reported ceiling by 100. Relative to the actual wager buy100's ceiling was
+  4,900x, identical to Earn.
+  Fix: `MAX_PAYOUT_ABS` keyed by cost (1x 100,000 / 10x 45,000 / 100x 90,000,
+  each ~10% under its tier), applied in `cap_for` by lowering the risk `top` the
+  `CAP_FRACTION` ladder steps down from. Clamping tiers individually instead
+  flattens the top two and the monotonicity nudge in `_fill_from` breaks the cap
+  (medium buy100 hit 150.1 vs a 150.0 cap).
+  `solve_buy` now solves **once per cost** — the ladders could share one table
+  only while every gate was per-cost. Side effect: cross-mode spread is now
+  measured over 160 modes, not 120. Still 0.30pp.
+  All 160 modes verify with 0 violations; every buy gate has margin (worst
+  etl40 0.789/0.88, cvar 283/700, hit rate 0.073/0.021). Ceiling cut cost no
+  player-facing frequency: only SD, mean 5.41 -> 5.17.
+- ⚠️ verifier gap: `rgs_verification.py` computed `max_win` and stored it but
+  omitted it from `mode_limits`, so a 490,000x ladder passed locally. Added
+  (`100_000 * 100` — that field is the raw LUT payout). Negative-tested.
+- ⚠️ contradiction surfaced: this wiki records the 2-Star max payout as 25,000x,
+  the live dashboard shows 50,000x. Both recorded, neither resolved.
+
+## [2026-08-28] fix | Export `pulseRolled`; resolve the client path; flag stale claims
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno/export_luts.py, wiki/codebase/luma-keno.md, wiki/index.md
+- notes: `pulse` collapses to 1.0 on a 0× row, so a wasted Pulse roll was indistinguishable from no roll — `pulseRolled` now ships alongside it. On `high_pick_10_earn` Pulse rolls 10.0% and pays 0.51%. `WEB_OUT` pointed at a non-existent `web/` sibling and `makedirs` masked it; the path is now resolved at run time (monorepo, then sibling `lumen-keno/`, then `KENO_WEB_BOOKS`) and fails loudly. Because that fix makes the export actually reach the client, `carry_unpublished` now preserves the 80 UI-only buy modes and warns instead of deleting them. Wiki was two commits stale: Pulse medium is ×3 not ×2 (`f506383`), Earn pick_1 was re-solved, and mock `disabledBuyFeature` is `false` not `true`. Neither Aug 26 commit had been logged. All four dashboard gates re-verified against the shipped LUTs; hit-rate headroom is 0.58pp.
+
 ## [2026-08-25] feat | Earn Pulse ×2 (10%)
 
 - summary: wiki/codebase/luma-keno.md

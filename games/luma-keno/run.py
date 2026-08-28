@@ -11,8 +11,10 @@ import os
 from game_config import GameConfig
 from gamestate import GameState
 from keno_pick_one import (
-    base_hit_weight,
+    BUY_SUFFIXES,
     book_count_for_picks,
+    off_outcomes,
+    off_weight,
     parse_mode_name,
     parse_spin_criteria,
     paying_from_table,
@@ -26,7 +28,7 @@ def write_exact_lookup_tables(gamestate: GameState) -> None:
     """Replace sim counts with exact keno weights. Skip the Rust optimizer."""
     for mode in gamestate.config.bet_modes:
         name = mode.get_name()
-        risk, k, earn = parse_mode_name(name)
+        risk, k, earn, buy = parse_mode_name(name)
         base_lut = gamestate.output_files.get_final_lookup_name(name)
         opt_lut = gamestate.output_files.get_optimized_lookup_name(name)
         segmented = gamestate.output_files.get_final_segmented_name(name)
@@ -43,10 +45,17 @@ def write_exact_lookup_tables(gamestate: GameState) -> None:
                 sim_id, criteria, *_ = line.strip().split(",")
                 spin = parse_spin_criteria(criteria)
                 if earn:
-                    paying = paying_from_table(gamestate.config.keno_earn_paytable[risk][k])
-                    weight = spin_weight(k, spin, risk, paying=paying)
+                    table = (
+                        gamestate.config.keno_buy_paytable[buy][risk][k]
+                        if buy
+                        else gamestate.config.keno_earn_paytable[risk][k]
+                    )
+                    paying = paying_from_table(table)
+                    weight = spin_weight(
+                        k, spin, risk, paying=paying, bought=buy is not None
+                    )
                 else:
-                    weight = base_hit_weight(k, spin.main_hits)
+                    weight = off_weight(k, spin)
                 rows.append(f"{sim_id},{weight},{payouts[sim_id]}\n")
 
         text = "".join(rows)
@@ -75,16 +84,16 @@ def write_publish_index(gamestate: GameState) -> str:
 
 
 def print_mode_rtp_table(gamestate: GameState) -> None:
-    print(f"\n{'mode':>22} {'RTP':>8}   top prize")
+    print(f"\n{'mode':>26} {'RTP':>8}   top prize")
     for mode in gamestate.config.bet_modes:
-        risk, k, earn = parse_mode_name(mode.get_name())
-        rtp = gamestate.mode_rtp(risk, k, earn)
+        risk, k, earn, buy = parse_mode_name(mode.get_name())
+        rtp = gamestate.mode_rtp(risk, k, earn, buy)
         top = (
-            gamestate.settle_pay(risk, k, k, True, earn, True)
+            gamestate.settle_pay(risk, k, k, True, earn, True, buy)
             if earn
             else gamestate.pay_for(risk, k, k, False)
         )
-        print(f"{mode.get_name():>22} {rtp:8.4f}   {top:>9.1f}x")
+        print(f"{mode.get_name():>26} {rtp:8.4f}   {top:>9.1f}x")
 
 
 if __name__ == "__main__":
@@ -99,9 +108,14 @@ if __name__ == "__main__":
     num_sim_args = {}
     for risk in ("classic", "low", "medium", "high"):
         for k in range(1, 11):
-            num_sim_args[f"{risk}_pick_{k}"] = k + 1
+            num_sim_args[f"{risk}_pick_{k}"] = len(off_outcomes(k))
             paying = paying_from_table(config.keno_earn_paytable[risk][k])
             num_sim_args[f"{risk}_pick_{k}_earn"] = book_count_for_picks(k, paying=paying)
+            for buy in BUY_SUFFIXES:
+                buy_paying = paying_from_table(config.keno_buy_paytable[buy][risk][k])
+                num_sim_args[f"{risk}_pick_{k}_{buy}"] = book_count_for_picks(
+                    k, paying=buy_paying, bought=True
+                )
 
     run_conditions = {
         "run_sims": True,

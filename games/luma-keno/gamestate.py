@@ -17,21 +17,21 @@ class GameState(GameStateOverride):
         self.repeat = True
         while self.repeat:
             self.reset_book()
-            risk, k, earn = self.mode_parts()
+            risk, k, earn, buy = self.mode_parts()
             spin = self.spin_from_criteria()
             if earn:
-                base = self.pay_for(risk, k, spin.total_hits, True)
+                base = self.pay_for(risk, k, spin.total_hits, True, buy)
                 after_lumen = self.settle_pay(
-                    risk, k, spin.total_hits, spin.lumen_hit, True, False
+                    risk, k, spin.total_hits, spin.lumen_hit, True, False, buy
                 )
                 pay = self.settle_pay(
-                    risk, k, spin.total_hits, spin.lumen_hit, True, spin.pulse
+                    risk, k, spin.total_hits, spin.lumen_hit, True, spin.pulse, buy
                 )
                 keno_start_event(
                     self,
                     risk,
                     k,
-                    self.pay_row_for(risk, k, True),
+                    self.pay_row_for(risk, k, True, buy),
                     LUMEN_BOOST[risk],
                     True,
                     PULSE_BOOST[risk],
@@ -50,7 +50,7 @@ class GameState(GameStateOverride):
                 )
             else:
                 hits = spin.main_hits
-                pay = self.pay_for(risk, k, hits, False)
+                pay = self.off_pay_for(risk, k, spin)
                 keno_start_event(
                     self, risk, k, self.pay_row_for(risk, k, False), 1.0, False, 1.0
                 )

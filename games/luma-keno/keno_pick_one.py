@@ -1,12 +1,33 @@
 """pick_1 miss/hit plus Lumen/extra spin criteria.
 
-pick_1 is two advertised outcomes (miss 30/40, hit 10/40) on the 0.1x grid.
+pick_1 is two advertised outcomes (miss 30/40, hit 10/40).
 Catching Lumen multiplies a paying hit, so the lattice is
-`0.75*miss + c_hit*hit = 0.950` with `c_hit > 0.25`. 0.975 still busts
+`0.75*miss + c_hit*hit = RTP_TARGET` with `c_hit > 0.25`. 0.975 busts
 `verify_mode_volatility` (0.967). Do not split miss weight.
 
-Dashboard Cross-Mode RTP is 0.50pp, so picks 2-10 share this 0.950
+Dashboard Cross-Mode RTP is 0.50pp, so picks 2-10 share the same
 target after extras and Lumen are priced in.
+
+**Off pick_1 has three payout tiers, not two.** With two tiers the reachable
+RTPs are `0.75*m + 0.25*h`; both legs are multiples of 0.1 (the RGS requires
+`payout % 10 == 0` on 1000-unit bets — see `utils/rgs_verification.py`), so the
+lattice is `0.025*(3j + i)` and only multiples of **0.025** exist. 0.950 is one
+(0.025 x 38); 0.965 is not, and the next one up is 0.975, over the 0.967
+ceiling. A finer advertised grid is not available — 0.01x payouts are illegal,
+which is what an earlier revision of this note got wrong.
+
+The third tier is the way out. Splitting the 30 miss books into 24 at `miss`
+and 6 at `miss + 0.1` adds exactly `6 * 0.1 / 40 = 0.015` and lands all four
+risks on 0.9650 with every payout still on the 0.1x grid. Both miss amounts are
+advertised (see `pick_one_tiers`); the alternative of quietly paying 6 books
+above the published number was rejected twice before — 2026-08-25 in
+`wiki/log.md` — and is worse now that the client ships an honest-presentation
+preset.
+
+The other two ways out were considered and are worse: dropping Off pick_1
+removes four bet modes and forces `MIN_PICKS=2` whenever Earn is off, and
+holding the mode at 0.950 opens a 1.5pp cross-mode spread against the 0.50pp
+dashboard gate.
 """
 
 from __future__ import annotations
@@ -18,6 +39,43 @@ from math import comb
 
 STD_MIN = 0.62  # dashboard Base Mode STD floor is 0.60; leave margin
 
+# Single source of truth for the advertised return. Imported by
+# solve_paytables.py — do not re-declare it there.
+#
+# 0.9650 (was 0.9500). House edge 5.0% -> 3.5%, a 30% cut in bleed rate and the
+# largest single lever on session length in the system.
+RTP_TARGET = 0.9650
+# Dashboard 3-star per-mode volatility ceiling. Never solve above this.
+RTP_CEILING = 0.967
+# Per-mode acceptance band. Asymmetric because both edges are pinned by
+# something real, not by symmetry around the target:
+#
+#   upper 0.9665 — the naive 0.965 + 0.0025 is 0.9675, over RTP_CEILING.
+#   lower 0.9628 — pick_1 Earn pays are multiples of 0.1x (lumen_pay rounds to
+#     1dp), which makes reachable RTP a coarse lattice. medium_pick_1_earn can
+#     reach exactly one point in this band, 0.9630, so the floor has to sit just
+#     below it. The 0.0002 of clearance is for float representation only; the
+#     next lattice point down is 0.9600, 30x further away.
+#
+# Width is 0.37pp, inside the 0.50pp Cross-Mode Consistency gate. Raising the
+# floor past 0.9630 makes medium_pick_1_earn unsolvable.
+#
+# This floor is only this tight because LUMEN_BOOST["high"] came down to 2.0. At
+# 5.0, gcd(825, 385) = 55 spaced high_pick_1_earn's options 0.0055 apart and
+# 0.9625 was its only legal value, forcing a 0.9620 floor.
+#
+# Lives here rather than in solve_paytables.py because pick_one_row_earn has to
+# search against it. When the band was only known to the caller, that search
+# used a hardcoded +/-0.0025 and returned a point outside the band.
+MODE_RTP_BAND = (0.9628, 0.9665)
+assert MODE_RTP_BAND[0] < RTP_TARGET < MODE_RTP_BAND[1] < RTP_CEILING
+assert MODE_RTP_BAND[1] - MODE_RTP_BAND[0] < 0.005, "busts Cross-Mode gate"
+
+# What an advertised Off pick_1 miss/hit pair can reach on its own: multiples of
+# 0.025, so the best point at or below target is 0.950. The gap to RTP_TARGET is
+# closed by the third tier, not by moving this.
+PICK_ONE_BASE_RTP = 0.950
+
 POOL = 40
 DRAWN = 10
 REST = 30
@@ -25,6 +83,32 @@ EXTRA_N = 2
 CHANCE_DENOM = 100
 
 # Off (table-only) pick_1 lattice. Earn pick_1 is solved with Lumen priced in.
+#
+# pick_1 is the one mode where the LDW band is unreachable. Two outcomes and
+# P(hit) = 0.25 make it a line, not a surface: 0.75*miss + 0.25*hit = RTP. Any
+# miss in (0, 1) pays something on the losing outcome, so LDW is 75%; miss = 0
+# makes it 0%. Nothing in between exists, and a push (miss = 1.0) is impossible
+# because it would spend 0.75 of a 0.965 budget and leave the *hit* tier paying
+# 0.86x — below the stake, and below the miss.
+#
+# The fork is resolved to "keep the gentle bleed", and not as a preference — the
+# jackpot branch is blocked by certification. With miss = 0 an Off pick_1 row has
+# exactly one distinct nonzero payout, and check_gates requires two. Earn escapes
+# that only because Lumen x5 manufactures a second tier (2.5 and 12.5 on high),
+# so taking the branch would leave Off and Earn with opposite LDW shapes on the
+# same mode. Two further reasons not to reach for it:
+#
+#   - Flipping all four risks to miss = 0 makes every row identical
+#     ([0.0, 3.86]) and quietly turns the risk selector into a no-op on 1 pick.
+#   - The gate's own comment scopes it to "k >= 2", so k = 1 arguably slips
+#     through by accident. Rewriting a certification gate to admit a shape we
+#     happen to want is the wrong direction of causation; if pick_1 should be
+#     allowed a single paying tier, that is a dashboard question, not a solver
+#     edit.
+#
+# Consequence to carry forward: pick_1 stays at 75% LDW and is the one mode
+# structurally outside the 15-22% band. It is 8 of 80 modes and the shallowest
+# ladder, so it does not dominate the session-level rate.
 PICK_ONE_MISS = {
     "low": 0.5,
     "classic": 0.4,
@@ -33,6 +117,17 @@ PICK_ONE_MISS = {
 }
 MISS_WEIGHT = 30
 HIT_WEIGHT = 10
+# Off pick_1's third tier. `MISS_WEIGHT` books split into `MISS_WEIGHT -
+# PICK_ONE_BONUS_WEIGHT` at `miss` and `PICK_ONE_BONUS_WEIGHT` at `miss +
+# PICK_ONE_BONUS`. The base pair sits on the 0.950 lattice and the split adds
+# the remaining 1.5pp; see the module docstring for why a two-tier pick_1
+# cannot reach 0.9650 at all.
+PICK_ONE_BONUS = 0.1
+PICK_ONE_BONUS_WEIGHT = round(
+    (RTP_TARGET - PICK_ONE_BASE_RTP) * (MISS_WEIGHT + HIT_WEIGHT) / PICK_ONE_BONUS
+)
+assert PICK_ONE_BONUS_WEIGHT == 6, "expected 6 upgraded miss books"
+assert 0 < PICK_ONE_BONUS_WEIGHT < MISS_WEIGHT
 EXTRA_CHANCE_PCT = {
     "classic": 16,
     "low": 10,
@@ -48,22 +143,48 @@ PULSE_BOOST = {
     "high": 2.0,
 }
 PULSE_CHANCE_PCT = 10
+# high was 5.0, which put 69-74% of the return on picks 5-10 into a channel that
+# pays on under 3% of rounds: the base table was left doing a quarter of its
+# nominal job, so a session read as a flat line punctuated by rare spikes.
+#
+# 2.0 is the value, and the intermediate steps were measured rather than assumed:
+#
+#   L=5.0 -> 8 modes over 50% Lumen share, peak 74.0%
+#   L=4.0 -> 8 modes over 50% Lumen share, peak 68.2%   (barely moves)
+#   L=3.0 -> unsolvable; see below
+#   L=2.0 -> 0 modes over 50%, peak 42.3%, cross-mode spread 0.0031 -> 0.0028
+#
+# 3.0 is not available at all: it makes gcd(825, 330) = 165, so high_pick_1_earn
+# can only reach 0.9570 or 0.9735 and neither is inside MODE_RTP_BAND.
+#
+# What this does *not* cost is the top prize. advertised_cap divides by
+# settle_factor, so lowering the boost raises the advertised row instead —
+# high_pick_10_earn goes 490x advertised / 4900x settled to 1225x / 4900x. The
+# money and the headline are unchanged; only the split between the table the
+# player watches and the multiplier moves. high keeps its identity through
+# RISK_SHAPES (top, beta, sub40), which is where it actually lives.
+#
+# Integer on purpose: lumen_pay rounds to 1dp, so a fractional boost like 2.5
+# turns a 0.1x tier into 0.25x and silently rounds it, breaking the LUT's
+# multiple-of-10-units rule at the smallest tiers.
 LUMEN_BOOST = {
     "classic": 2.0,
     "low": 2.0,
     "medium": 2.0,
-    "high": 5.0,
+    "high": 2.0,
 }
-EXTRA_REASONS = ("none", "lumen", "near", "luck")
+EXTRA_REASONS = ("none", "lumen", "near", "luck", "bought")
 REASON_TO_EVENT = {
     "none": None,
     "lumen": "lumen",
     "near": "nearMiss",
     "luck": "natural",
+    "bought": "bought",
 }
 
 _SPIN_RE = re.compile(
-    r"^hits_(\d+)_lumen_([01])_extra_([01])_(none|lumen|near|luck)_(\d+)(?:_pulse_([01]))?$"
+    r"^hits_(\d+)_lumen_([01])_extra_([01])_(none|lumen|near|luck|bought)_(\d+)"
+    r"(?:_pulse_([01]))?$"
 )
 
 
@@ -75,23 +196,71 @@ class SpinCriteria:
     extra_reason: str
     extra_hits: int
     pulse: bool = False
+    # Off pick_1 only: this book is one of the PICK_ONE_BONUS_WEIGHT misses that
+    # pay PICK_ONE_BONUS above the advertised miss. Earn never sets it — its
+    # lattice is already fine enough without a third tier.
+    miss_bonus: bool = False
 
     @property
     def total_hits(self) -> int:
         return self.main_hits + self.extra_hits
 
 
-def parse_mode_name(name: str) -> tuple[str, int, bool]:
-    """'{risk}_pick_{k}' or '{risk}_pick_{k}_earn' → (risk, k, earn)."""
+#: Buy chips, and the stake multiple each costs. A buy round settles on the Earn
+#: rules with the extras forced open, so `parse_mode_name` reports it as earn.
+BUY_SUFFIXES = {"buy10": 10.0, "buy100": 100.0}
+
+
+def parse_mode_name(name: str) -> tuple[str, int, bool, str | None]:
+    """'{risk}_pick_{k}[_earn|_buy10|_buy100]' → (risk, k, earn, buy).
+
+    `buy` is the chip name or None. Buy modes return earn=True because they
+    settle through the Earn tables and bonus channels; the only differences are
+    the cost and the forced extras, both of which the caller reads off `buy`.
+    """
+    buy = next((s for s in BUY_SUFFIXES if name.endswith(f"_{s}")), None)
+    if buy is not None:
+        core = name[: -(len(buy) + 1)]
+        risk, pick = core.rsplit("_pick_", 1)
+        return risk, int(pick), True, buy
     earn = name.endswith("_earn")
     core = name[: -5] if earn else name
     risk, pick = core.rsplit("_pick_", 1)
-    return risk, int(pick), earn
+    return risk, int(pick), earn, None
 
 
-def mode_name(risk: str, k: int, earn: bool = False) -> str:
+def mode_name(risk: str, k: int, earn: bool = False, buy: str | None = None) -> str:
     base = f"{risk}_pick_{k}"
+    if buy is not None:
+        return f"{base}_{buy}"
     return f"{base}_earn" if earn else base
+
+
+def off_outcomes(k: int) -> list[SpinCriteria]:
+    """Off books for `k` picks: one per hit count, plus the pick_1 bonus miss."""
+    out = [SpinCriteria(h, False, False, "none", 0) for h in range(k + 1)]
+    if k == 1:
+        out.insert(1, SpinCriteria(0, False, False, "none", 0, False, True))
+    return out
+
+
+def off_weight(k: int, spin: SpinCriteria) -> int:
+    """LUT weight for an Off book. pick_1's miss weight splits across two tiers;
+    every other mode is a plain hypergeometric count."""
+    weight = base_hit_weight(k, spin.main_hits)
+    if k != 1 or spin.main_hits != 0:
+        return weight
+    return PICK_ONE_BONUS_WEIGHT if spin.miss_bonus else weight - PICK_ONE_BONUS_WEIGHT
+
+
+def off_pay(spin: SpinCriteria, table: list[float]) -> float:
+    """Off payout for a book, including pick_1's bonus miss tier."""
+    base = (
+        round(float(table[spin.main_hits] or 0), 1)
+        if spin.main_hits < len(table)
+        else 0.0
+    )
+    return round(base + PICK_ONE_BONUS, 1) if spin.miss_bonus else base
 
 
 def base_hit_weight(k: int, h: int, drawn: int = DRAWN, rest: int = REST) -> int:
@@ -101,7 +270,10 @@ def base_hit_weight(k: int, h: int, drawn: int = DRAWN, rest: int = REST) -> int
 
 
 def pick_one_hit(miss: float) -> float:
-    return round((0.95 - 0.75 * miss) / 0.25, 1)
+    """Hit pay for the advertised Off pick_1 pair, on the 0.1x grid the RGS
+    requires. This lands the pair on PICK_ONE_BASE_RTP, not RTP_TARGET — the
+    remaining 1.5pp comes from the bonus miss tier."""
+    return round((PICK_ONE_BASE_RTP - 0.75 * miss) / 0.25, 1)
 
 
 def pick_one_row(risk: str) -> list[float]:
@@ -110,12 +282,32 @@ def pick_one_row(risk: str) -> list[float]:
     return [miss, pick_one_hit(miss)]
 
 
-def pick_one_std(risk: str) -> float:
+def pick_one_bonus_miss(risk: str) -> float:
+    """The upgraded miss. Advertised alongside the plain one."""
+    return round(PICK_ONE_MISS[risk] + PICK_ONE_BONUS, 1)
+
+
+def pick_one_tiers(risk: str) -> list[tuple[int, float]]:
+    """(weight, pay) over all 40 Off pick_1 books, in payout order."""
     miss, hit = pick_one_row(risk)
-    mean = 0.95
-    var = (
-        MISS_WEIGHT * (miss - mean) ** 2 + HIT_WEIGHT * (hit - mean) ** 2
-    ) / (MISS_WEIGHT + HIT_WEIGHT)
+    return [
+        (MISS_WEIGHT - PICK_ONE_BONUS_WEIGHT, miss),
+        (PICK_ONE_BONUS_WEIGHT, pick_one_bonus_miss(risk)),
+        (HIT_WEIGHT, hit),
+    ]
+
+
+def pick_one_rtp(risk: str) -> float:
+    tiers = pick_one_tiers(risk)
+    total = sum(w for w, _ in tiers)
+    return sum(w * pay for w, pay in tiers) / total
+
+
+def pick_one_std(risk: str) -> float:
+    tiers = pick_one_tiers(risk)
+    total = sum(w for w, _ in tiers)
+    mean = pick_one_rtp(risk)
+    var = sum(w * (pay - mean) ** 2 for w, pay in tiers) / total
     return var**0.5
 
 
@@ -160,6 +352,10 @@ def parse_spin_criteria(criteria: str) -> SpinCriteria:
     if rest.isdigit():
         hits = int(rest)
         return SpinCriteria(hits, False, False, "none", 0)
+    if rest.endswith("_bonus_1"):
+        hits_s = rest[: -len("_bonus_1")]
+        if hits_s.isdigit():
+            return SpinCriteria(int(hits_s), False, False, "none", 0, False, True)
     raise ValueError(f"cannot parse hits from criteria {criteria}")
 
 
@@ -207,13 +403,19 @@ def extras_forced_reason(
     main_hits: int,
     lumen_hit: bool,
     paying: frozenset[int] | None = None,
+    bought: bool = False,
 ) -> str | None:
     """Forced extras. Catching Lumen only opens if the main ten already pays.
 
     `paying` is advertised hit counts with a >0 row. None treats every hit as
     paying (old lumen-always-open behavior). A dead-table Lumen catch must not
     fall through to luck.
+
+    `bought` is the buy chips: the two extras are what the purchase buys, so
+    they open unconditionally and outrank every earned reason.
     """
+    if bought:
+        return "bought"
     if lumen_hit:
         if paying is None or main_hits in paying:
             return "lumen"
@@ -228,6 +430,7 @@ def extra_outcomes(
     main_hits: int,
     lumen_hit: bool,
     paying: frozenset[int] | None = None,
+    bought: bool = False,
 ) -> list[tuple[bool, str, int]]:
     """Earn extras: first match lumen (paying main) → near-miss → luck.
 
@@ -235,7 +438,7 @@ def extra_outcomes(
     and near-miss. It is 0 at pick_1 (cannot have two main hits). Catching
     Lumen on a 0× main row keeps extras closed and does not roll luck.
     """
-    forced = extras_forced_reason(k, main_hits, lumen_hit, paying)
+    forced = extras_forced_reason(k, main_hits, lumen_hit, paying, bought)
     js = extra_hit_js(k, main_hits)
     if forced:
         return [(True, forced, j) for j in js]
@@ -250,12 +453,13 @@ def spin_outcomes(
     k: int,
     drawn: int = DRAWN,
     paying: frozenset[int] | None = None,
+    bought: bool = False,
 ) -> list[SpinCriteria]:
     out: list[SpinCriteria] = []
     for main_hits in range(k + 1):
         for lumen_hit in lumen_books_for_hits(main_hits, drawn):
             for extras, reason, extra_hits in extra_outcomes(
-                k, main_hits, lumen_hit, paying
+                k, main_hits, lumen_hit, paying, bought
             ):
                 for pulse in (False, True):
                     out.append(
@@ -265,13 +469,16 @@ def spin_outcomes(
 
 
 def book_count_for_picks(
-    k: int, drawn: int = DRAWN, paying: frozenset[int] | None = None
+    k: int,
+    drawn: int = DRAWN,
+    paying: frozenset[int] | None = None,
+    bought: bool = False,
 ) -> int:
-    return len(spin_outcomes(k, drawn, paying))
+    return len(spin_outcomes(k, drawn, paying, bought))
 
 
-def hit_criteria_base(hits: int) -> str:
-    return f"hits_{hits}"
+def hit_criteria_base(hits: int, miss_bonus: bool = False) -> str:
+    return f"hits_{hits}_bonus_1" if miss_bonus else f"hits_{hits}"
 
 
 def hit_criteria_name(spin: SpinCriteria) -> str:
@@ -289,6 +496,7 @@ def spin_weight(
     drawn: int = DRAWN,
     rest: int = REST,
     paying: frozenset[int] | None = None,
+    bought: bool = False,
 ) -> int:
     base = (
         comb(drawn, spin.main_hits)
@@ -299,7 +507,14 @@ def spin_weight(
     pair = extra_pair_weight(k, spin.main_hits, spin.extra_hits)
     chance = EXTRA_CHANCE_PCT[risk]
     pulse_part = PULSE_CHANCE_PCT if spin.pulse else (CHANCE_DENOM - PULSE_CHANCE_PCT)
-    forced = extras_forced_reason(k, spin.main_hits, spin.lumen_hit, paying)
+    forced = extras_forced_reason(k, spin.main_hits, spin.lumen_hit, paying, bought)
+    # Bought extras are certain, so they carry the whole CHANCE_DENOM rather
+    # than a luck slice. Summed over extra_hits and pulse this still lands on
+    # weight_total, so buy books validate against the same weight assertion.
+    if bought:
+        if not spin.extras:
+            raise ValueError(f"bought extras closed: {spin}")
+        return base * CHANCE_DENOM * pair * pulse_part
     if not spin.extras:
         if forced:
             raise ValueError(f"forced extras closed: {spin}")
@@ -357,47 +572,61 @@ def weight_total(k: int, drawn: int = DRAWN) -> int:
 
 
 @lru_cache(maxsize=None)
-def effective_coeff(risk: str, k: int, paying: frozenset[int]) -> tuple[float, ...]:
+def effective_coeff(
+    risk: str, k: int, paying: frozenset[int], bought: bool = False
+) -> tuple[float, ...]:
     """RTP = sum_h coeff[h] * advertised[h] when advertised[h] > 0 iff h in paying.
 
     Lumen and Pulse are priced in: a paying row that is caught contributes
     boost * P; Pulse (×2, or ×3 on medium) on 10% of Earn books. Extras
     from Lumen only open when main_hits is in `paying`.
+
+    `bought` forces the extras open, which is the buy chips' whole product. It
+    shifts weight into the higher total-hit buckets rather than adding a
+    channel, so the coefficients stay a plain RTP decomposition.
     """
     total = weight_total(k)
     boost = LUMEN_BOOST[risk]
     coeff = [0.0] * (k + 1)
-    for spin in spin_outcomes(k, paying=paying):
+    for spin in spin_outcomes(k, paying=paying, bought=bought):
         hits = spin.total_hits
         if hits not in paying:
             continue
         factor = boost if spin.lumen_hit else 1.0
         if spin.pulse:
             factor *= PULSE_BOOST[risk]
-        coeff[hits] += spin_weight(k, spin, risk, paying=paying) * factor / total
+        coeff[hits] += (
+            spin_weight(k, spin, risk, paying=paying, bought=bought) * factor / total
+        )
     return tuple(coeff)
 
 
-def settled_pairs(risk: str, k: int, table: list[float]) -> list[tuple[int, float]]:
+def settled_pairs(
+    risk: str, k: int, table: list[float], bought: bool = False
+) -> list[tuple[int, float]]:
     """(weight, settled multiplier) for every spin book."""
     paying = paying_from_table(table)
     return [
         (
-            spin_weight(k, spin, risk, paying=paying),
+            spin_weight(k, spin, risk, paying=paying, bought=bought),
             settle_pay(table[spin.total_hits], spin.lumen_hit, spin.pulse, risk),
         )
-        for spin in spin_outcomes(k, paying=paying)
+        for spin in spin_outcomes(k, paying=paying, bought=bought)
     ]
 
 
-def settled_rtp(risk: str, k: int, table: list[float]) -> float:
+def settled_rtp(
+    risk: str, k: int, table: list[float], bought: bool = False
+) -> float:
     total = weight_total(k)
-    return sum(w * m for w, m in settled_pairs(risk, k, table)) / total
+    return sum(w * m for w, m in settled_pairs(risk, k, table, bought)) / total
 
 
-def settled_stats(risk: str, k: int, table: list[float]) -> dict:
+def settled_stats(
+    risk: str, k: int, table: list[float], bought: bool = False
+) -> dict:
     total = weight_total(k)
-    pairs = settled_pairs(risk, k, table)
+    pairs = settled_pairs(risk, k, table, bought)
     rtp = sum(w * m for w, m in pairs) / total
     var = sum(w * (m - rtp) ** 2 for w, m in pairs) / total
     p5k = sum(w for w, m in pairs if m >= 5000) / total
@@ -428,19 +657,83 @@ def settled_stats(risk: str, k: int, table: list[float]) -> dict:
     }
 
 
+def base_coeff(k: int) -> tuple[float, ...]:
+    """Plain hypergeometric P(main hits = h). Off has no Lumen or Pulse to
+    price in, so this is the Off counterpart of `effective_coeff`."""
+    total = comb(POOL, k)
+    return tuple(base_hit_weight(k, h) / total for h in range(k + 1))
+
+
+def base_stats(k: int, table: list[float]) -> dict:
+    """`settled_stats` over Off books: k+1 hit buckets, no bonus channels.
+
+    Deliberately returns the same keys so `check_gates` can grade Off and Earn
+    through one code path.
+    """
+    total = comb(POOL, k)
+    # Driven by off_outcomes rather than a range over hit counts so pick_1's
+    # bonus miss tier is graded by the same code path as every other mode.
+    pairs = [(off_weight(k, spin), off_pay(spin, table)) for spin in off_outcomes(k)]
+    pairs = [(w, m) for w, m in pairs if w > 0]
+    rtp = sum(w * m for w, m in pairs) / total
+    var = sum(w * (m - rtp) ** 2 for w, m in pairs) / total
+    ranked = sorted(pairs, key=lambda t: t[1])
+    cum = 0.0
+    tail_start = ranked[0][1] if ranked else 0.0
+    for w, m in ranked:
+        cum += w / total
+        if cum >= 0.999:
+            tail_start = m
+            break
+    tail_p = sum(w for w, m in pairs if m >= tail_start) / total
+    cvar = (
+        sum(w * m for w, m in pairs if m >= tail_start) / total / tail_p
+    ) if tail_p else 0.0
+    return {
+        "rtp": rtp,
+        "std": var**0.5,
+        "p5k": sum(w for w, m in pairs if m >= 5000) / total,
+        "p10k": sum(w for w, m in pairs if m >= 10000) / total,
+        "etl40": sum(w * m for w, m in pairs if m >= 40) / total,
+        "etl10k": sum(w * m for w, m in pairs if m >= 10000) / total,
+        "cvar": cvar,
+        "max_m": max(m for _, m in pairs),
+        "hit_rate": sum(w for w, m in pairs if m > 0) / total,
+        "nonzero_payouts": sorted({m for _, m in pairs if m > 0}),
+    }
+
+
 @lru_cache(maxsize=None)
 def pick_one_row_earn(risk: str) -> list[float]:
-    """Earn advertised miss/hit so settled RTP (with Lumen) is ~0.950."""
+    """Earn advertised miss/hit so settled RTP (with Lumen) is ~RTP_TARGET.
+
+    0.1x grid, unlike Off pick_1's 0.01x. Not a style choice: `lumen_pay` and
+    `pulse_pay` round to 1dp, so a 0.01x advertised value is silently rounded at
+    settlement and the row does not pay what the table says. Off has no such
+    rounding, which is why it can use the finer grid to land exactly on target.
+
+    The cost is a coarse lattice on high, where Lumen x5 makes reachable RTPs
+    0.0055 apart — see the MODE_RTP_BAND note for why that pins the band floor.
+    """
     coeff = effective_coeff(risk, 1, frozenset({0, 1}))
+    lo, hi = MODE_RTP_BAND
     best: tuple[float, float, list[float]] | None = None
-    for miss_i in range(1, 16):
+    # Earn follows the fork Off took for this risk (see PICK_ONE_MISS). Without
+    # this the `-miss` tie-break below prefers the *highest* affordable miss, so
+    # Earn would reinstate the 75% LDW that Off just removed on `high`.
+    jackpot_fork = PICK_ONE_MISS[risk] == 0.0
+    miss_range = range(0, 1) if jackpot_fork else range(1, 16)
+    for miss_i in miss_range:
         miss = miss_i / 10
         for hit_i in range(miss_i + 1, 81):
             hit = hit_i / 10
             rtp = coeff[0] * miss + coeff[1] * hit
-            err = abs(rtp - 0.95)
-            if err > 0.0025:
+            # Filter on the band the caller will gate on, not a private
+            # tolerance, or the two disagree and the solver reports a failure it
+            # had no way to avoid.
+            if not lo <= rtp <= hi:
                 continue
+            err = abs(rtp - RTP_TARGET)
             table = [miss, hit]
             stats = settled_stats(risk, 1, table)
             if stats["std"] < STD_MIN:
@@ -459,7 +752,34 @@ def pick_one_std_earn(risk: str) -> float:
 
 assert all(pick_one_std(risk) > STD_MIN for risk in PICK_ONE_MISS)
 assert all(pick_one_std_earn(risk) > STD_MIN for risk in LUMEN_BOOST)
-assert abs(settled_rtp("classic", 1, pick_one_row_earn("classic")) - 0.95) <= 0.0025
+assert (
+    abs(settled_rtp("classic", 1, pick_one_row_earn("classic")) - RTP_TARGET) <= 0.0025
+)
+# 1e-9 rather than exact equality: the sums are float, but the nearest reachable
+# lattice point is 0.0025 away, so these still catch a genuine miss.
+assert all(
+    abs(0.75 * miss + 0.25 * pick_one_hit(miss) - PICK_ONE_BASE_RTP) < 1e-9
+    for miss in PICK_ONE_MISS.values()
+), "Off pick_1 advertised pair left its 0.025 lattice"
+assert all(
+    abs(pick_one_rtp(risk) - RTP_TARGET) < 1e-9 for risk in PICK_ONE_MISS
+), "Off pick_1 bonus tier did not close the gap to target"
+# base_stats grades Off through off_outcomes, so it must already see the third
+# tier — this is what check_gates reads.
+assert all(
+    abs(base_stats(1, pick_one_row(risk))["rtp"] - RTP_TARGET) < 1e-9
+    for risk in PICK_ONE_MISS
+), "base_stats missed Off pick_1's bonus tier"
+# The bonus tier must not leak into any other mode, and pick_1's three books
+# must still add up to the full C(40,1) sample space.
+assert [s.miss_bonus for s in off_outcomes(1)] == [False, True, False]
+assert sum(off_weight(1, s) for s in off_outcomes(1)) == comb(POOL, 1)
+assert all(
+    sum(off_weight(k, s) for s in off_outcomes(k)) == comb(POOL, k) for k in range(1, 11)
+)
+assert not any(s.miss_bonus for k in range(2, 11) for s in off_outcomes(k))
+assert parse_spin_criteria("hits_0_bonus_1").miss_bonus
+assert not parse_spin_criteria("hits_0").miss_bonus
 assert book_count_for_picks(1) == 6
 CLASSIC_8_PAYING = frozenset({3, 4, 5, 6, 7, 8})
 assert extras_forced_reason(8, 2, True, CLASSIC_8_PAYING) is None

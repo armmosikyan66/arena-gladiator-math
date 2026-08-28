@@ -9,11 +9,13 @@ import json
 import os
 
 from keno_pick_one import (
+    BUY_SUFFIXES,
     LUMEN_BOOST,
     PULSE_BOOST,
     hit_criteria_base,
     hit_criteria_name,
     mode_name,
+    off_outcomes,
     paying_from_table,
     spin_outcomes,
 )
@@ -64,24 +66,36 @@ class GameConfig(Config):
         self.keno_risks = _RISKS
         self.keno_paytable = _tables("risks")
         self.keno_earn_paytable = _tables("earn")
+        self.keno_buy_paytable = {buy: _tables(buy) for buy in BUY_SUFFIXES}
         off_max = max(max(row) for tables in self.keno_paytable.values() for row in tables.values())
         earn_max = max(
             round(max(row) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1)
             for risk, tables in self.keno_earn_paytable.items()
             for row in tables.values()
         )
-        self.wincap = max(off_max, earn_max)
+        buy_max = max(
+            round(max(row) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1)
+            for tables in self.keno_buy_paytable.values()
+            for risk, rows in tables.items()
+            for row in rows.values()
+        )
+        self.wincap = max(off_max, earn_max, buy_max)
         self.rtp = float(_PAYTABLE_DOC["rtp_target"])
         self.bet_modes = [
             mode
             for risk in self.keno_risks
             for k in self.keno_picks
-            for mode in (self._off_mode(risk, k), self._earn_mode(risk, k))
+            for mode in (
+                self._off_mode(risk, k),
+                self._earn_mode(risk, k),
+                *(self._buy_mode(risk, k, buy) for buy in BUY_SUFFIXES),
+            )
         ]
         self.opt_params = {}
 
     def _off_mode(self, risk: str, k: int) -> BetMode:
-        n = k + 1
+        outcomes = off_outcomes(k)
+        n = len(outcomes)
         return BetMode(
             name=mode_name(risk, k, False),
             cost=1.0,
@@ -92,13 +106,13 @@ class GameConfig(Config):
             is_buybonus=False,
             distributions=[
                 Distribution(
-                    criteria=hit_criteria_base(h),
+                    criteria=hit_criteria_base(spin.main_hits, spin.miss_bonus),
                     quota=1.0 / n,
                     win_criteria=None,
                     conditions={"force_wincap": False, "force_freegame": False},
                     required_distribution_conditions=[],
                 )
-                for h in range(k + 1)
+                for spin in outcomes
             ],
         )
 
@@ -114,6 +128,38 @@ class GameConfig(Config):
             auto_close_disabled=False,
             is_feature=True,
             is_buybonus=False,
+            distributions=[
+                Distribution(
+                    criteria=hit_criteria_name(spin),
+                    quota=1.0 / n,
+                    win_criteria=None,
+                    conditions={"force_wincap": False, "force_freegame": False},
+                    required_distribution_conditions=[],
+                )
+                for spin in outcomes
+            ],
+        )
+
+    def _buy_mode(self, risk: str, k: int, buy: str) -> BetMode:
+        """A buy chip: Earn rules, extras forced open, cost a stake multiple.
+
+        `max_win` stays in base-stake units like the other modes, so it reads as
+        the buy table's top row settled through both bonuses. Divided by `cost`
+        it is a far smaller multiple than Earn's, which is the point: the player
+        has already paid for the shape.
+        """
+        table = self.keno_buy_paytable[buy][risk][k]
+        paying = paying_from_table(table)
+        outcomes = spin_outcomes(k, self.keno_drawn, paying, True)
+        n = len(outcomes)
+        return BetMode(
+            name=mode_name(risk, k, True, buy),
+            cost=BUY_SUFFIXES[buy],
+            rtp=self.rtp,
+            max_win=round(max(table) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1),
+            auto_close_disabled=False,
+            is_feature=True,
+            is_buybonus=True,
             distributions=[
                 Distribution(
                     criteria=hit_criteria_name(spin),

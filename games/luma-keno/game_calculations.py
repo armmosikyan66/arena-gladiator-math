@@ -3,6 +3,10 @@
 from math import comb
 
 from keno_pick_one import (
+    BUY_SUFFIXES,
+    off_outcomes,
+    off_pay,
+    off_weight,
     parse_mode_name,
     parse_spin_criteria,
     paying_from_table,
@@ -22,8 +26,8 @@ class GameCalculations(Executables):
             return 0
         return comb(drawn, h) * comb(rest, k - h)
 
-    def mode_parts(self) -> tuple[str, int, bool]:
-        """Split mode name into (risk, k, earn)."""
+    def mode_parts(self) -> tuple[str, int, bool, str | None]:
+        """Split mode name into (risk, k, earn, buy)."""
         return parse_mode_name(self.get_current_betmode().get_name())
 
     def picks_for_mode(self) -> int:
@@ -38,12 +42,26 @@ class GameCalculations(Executables):
     def spin_from_criteria(self):
         return parse_spin_criteria(str(self.criteria))
 
-    def pay_row_for(self, risk: str, k: int, earn: bool) -> list[float]:
-        return [self.pay_for(risk, k, h, earn) for h in range(k + 1)]
+    def pay_row_for(
+        self, risk: str, k: int, earn: bool, buy: str | None = None
+    ) -> list[float]:
+        return [self.pay_for(risk, k, h, earn, buy) for h in range(k + 1)]
 
-    def pay_for(self, risk: str, k: int, h: int, earn: bool) -> float:
-        tables = self.config.keno_earn_paytable if earn else self.config.keno_paytable
-        table = tables[risk][k]
+    def off_pay_for(self, risk: str, k: int, spin) -> float:
+        """Off payout for a book. Only differs from `pay_for` on pick_1's bonus
+        miss tier, which pays above the row indexed by hits."""
+        return off_pay(spin, self.config.keno_paytable[risk][k])
+
+    def pay_for(
+        self, risk: str, k: int, h: int, earn: bool, buy: str | None = None
+    ) -> float:
+        if buy is not None:
+            table = self.config.keno_buy_paytable[buy][risk][k]
+        else:
+            tables = (
+                self.config.keno_earn_paytable if earn else self.config.keno_paytable
+            )
+            table = tables[risk][k]
         if 0 <= h < len(table):
             return round(float(table[h] or 0), 1)
         return 0.0
@@ -56,23 +74,30 @@ class GameCalculations(Executables):
         lumen_hit: bool,
         earn: bool,
         pulse: bool = False,
+        buy: str | None = None,
     ) -> float:
-        base = self.pay_for(risk, k, hits, earn)
+        base = self.pay_for(risk, k, hits, earn, buy)
         if earn:
             return settle_amount(base, lumen_hit, pulse, risk)
         return base
 
-    def mode_rtp(self, risk: str, k: int, earn: bool) -> float:
+    def mode_rtp(self, risk: str, k: int, earn: bool, buy: str | None = None) -> float:
         if not earn:
             total = comb(self.config.keno_pool, k)
             return sum(
-                self.hit_weight(k, h) * self.pay_for(risk, k, h, False)
-                for h in range(k + 1)
+                off_weight(k, spin) * self.off_pay_for(risk, k, spin)
+                for spin in off_outcomes(k)
             ) / total
-        paying = paying_from_table(self.pay_row_for(risk, k, True))
+        bought = buy is not None
+        paying = paying_from_table(self.pay_row_for(risk, k, True, buy))
         total = comb(self.config.keno_pool, k) * self.config.keno_drawn * weight_scale()
+        # Buy rounds are priced per cost, so the return has to be divided by what
+        # the round charged before it can be compared with a 1x mode.
+        cost = BUY_SUFFIXES[buy] if bought else 1.0
         return sum(
-            spin_weight(k, spin, risk, paying=paying)
-            * self.settle_pay(risk, k, spin.total_hits, spin.lumen_hit, True, spin.pulse)
-            for spin in spin_outcomes(k, self.config.keno_drawn, paying)
-        ) / total
+            spin_weight(k, spin, risk, paying=paying, bought=bought)
+            * self.settle_pay(
+                risk, k, spin.total_hits, spin.lumen_hit, True, spin.pulse, buy
+            )
+            for spin in spin_outcomes(k, self.config.keno_drawn, paying, bought)
+        ) / (total * cost)

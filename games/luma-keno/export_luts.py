@@ -11,9 +11,12 @@ import os
 from math import comb
 
 from keno_pick_one import (
+    BUY_SUFFIXES,
     REASON_TO_EVENT,
-    base_hit_weight,
     book_count_for_picks,
+    off_outcomes,
+    off_pay,
+    off_weight,
     lumen_boost_applied,
     pulse_boost_applied,
     parse_spin_criteria,
@@ -22,17 +25,29 @@ from keno_pick_one import (
     spin_weight,
     weight_scale,
 )
+from web_paths import resolve_web_file
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 LIBRARY = os.path.join(HERE, "library")
 PUBLISH = os.path.join(LIBRARY, "publish_files")
 LOOKUPS = os.path.join(LIBRARY, "lookup_tables")
-WEB_OUT = os.path.abspath(os.path.join(HERE, "..", "..", "..", "web", "src", "data", "keno-books.json"))
 DRAWN = 10
 POOL = 40
 
 
-def export_mode(mode: str, k: int, risk: str, paytable: list[float], earn: bool) -> dict:
+def resolve_web_out() -> str:
+    return resolve_web_file("keno-books.json", "KENO_WEB_BOOKS")
+
+
+def export_mode(
+    mode: str,
+    k: int,
+    risk: str,
+    paytable: list[float],
+    earn: bool,
+    cost: float = 1.0,
+    bought: bool = False,
+) -> dict:
     lut_path = os.path.join(PUBLISH, f"lookUpTable_{mode}_0.csv")
     seg_path = os.path.join(LOOKUPS, f"lookUpTableSegmented_{mode}.csv")
 
@@ -52,12 +67,14 @@ def export_mode(mode: str, k: int, risk: str, paytable: list[float], earn: bool)
                 paying = paying_from_table(paytable)
                 base = paytable[spin.total_hits]
                 expected = int(round(settle_pay(base, spin.lumen_hit, spin.pulse, risk) * 100))
-                expect_weight = spin_weight(k, spin, risk, paying=paying)
+                expect_weight = spin_weight(
+                    k, spin, risk, paying=paying, bought=bought
+                )
                 after_lumen = lumen_boost_applied(base, spin.lumen_hit, risk)
             else:
-                base = paytable[spin.main_hits]
+                base = off_pay(spin, paytable)
                 expected = int(round(base * 100))
-                expect_weight = base_hit_weight(k, spin.main_hits)
+                expect_weight = off_weight(k, spin)
                 after_lumen = 1.0
             assert payout_int == expected, (
                 f"{mode}: LUT payout {payout_int} != settle {expected} "
@@ -81,6 +98,15 @@ def export_mode(mode: str, k: int, risk: str, paytable: list[float], earn: bool)
                     )
                     if earn
                     else 1.0,
+                    # `pulse` is the boost Pulse managed to apply, which collapses
+                    # to 1.0 on a 0x row. Without this flag a wasted Pulse roll is
+                    # indistinguishable from no roll at all, so the client cannot
+                    # render it and the impression rate cannot be measured.
+                    "pulseRolled": bool(spin.pulse) if earn else False,
+                    # Off pick_1 only: this miss pays the advertised bonus amount
+                    # rather than the plain one. The client needs it to label the
+                    # row, since both amounts sit on the same hit count.
+                    "missBonus": bool(spin.miss_bonus),
                     "weight": int(weight),
                     "payout": payout_int,
                 }
@@ -88,7 +114,9 @@ def export_mode(mode: str, k: int, risk: str, paytable: list[float], earn: bool)
 
     rows.sort(key=lambda r: r["id"])
     expect_n = (
-        book_count_for_picks(k, DRAWN, paying_from_table(paytable)) if earn else k + 1
+        book_count_for_picks(k, DRAWN, paying_from_table(paytable), bought)
+        if earn
+        else len(off_outcomes(k))
     )
     assert len(rows) == expect_n, f"{mode}: expected {expect_n} books, found {len(rows)}"
 
@@ -97,10 +125,30 @@ def export_mode(mode: str, k: int, risk: str, paytable: list[float], earn: bool)
     assert total == expect_total, f"{mode}: weight sum {total} != {expect_total}"
 
     return {
-        "cost": 1.0,
-        "rtp": sum(r["weight"] * r["payout"] for r in rows) / (total * 100),
+        "cost": cost,
+        # Payouts are base-stake multiples in hundredths, so a buy round divides
+        # by its cost to report the return on what the player actually spent.
+        "rtp": sum(r["weight"] * r["payout"] for r in rows) / (total * 100 * cost),
         "books": rows,
     }
+
+
+def carry_unpublished(web_out: str, modes: dict[str, dict]) -> list[str]:
+    """Keep modes the client already ships that this build does not generate.
+
+    The buy chips are UI-only: they live in the web LUTs but have no paytable or
+    BetMode here. Dropping them would leave the client throwing `unknown mode`,
+    so they are carried forward and reported on every export rather than being
+    quietly deleted or quietly kept.
+    """
+    if not os.path.isfile(web_out):
+        return []
+    with open(web_out, encoding="UTF-8") as handle:
+        existing = json.load(handle).get("modes", {})
+    carried = [name for name in existing if name not in modes]
+    for name in carried:
+        modes[name] = existing[name]
+    return carried
 
 
 def main() -> None:
@@ -118,6 +166,12 @@ def main() -> None:
             k = int(k_s)
             mode = f"{risk}_pick_{k}_earn"
             modes[mode] = export_mode(mode, k, risk, row, True)
+    for buy, cost in BUY_SUFFIXES.items():
+        for risk, tables in paytables[buy].items():
+            for k_s, row in tables.items():
+                k = int(k_s)
+                mode = f"{risk}_pick_{k}_{buy}"
+                modes[mode] = export_mode(mode, k, risk, row, True, cost, True)
 
     doc = {
         "gameId": "luma-keno",
@@ -125,13 +179,24 @@ def main() -> None:
         "drawn": paytables["drawn"],
         "modes": modes,
     }
-    os.makedirs(os.path.dirname(WEB_OUT), exist_ok=True)
-    with open(WEB_OUT, "w", encoding="UTF-8") as handle:
+    web_out = resolve_web_out()
+    carried = carry_unpublished(web_out, modes)
+    with open(web_out, "w", encoding="UTF-8") as handle:
         json.dump(doc, handle, indent=2)
+        handle.write("\n")
 
     rtps = [m["rtp"] for m in modes.values()]
-    print(f"wrote {WEB_OUT}")
+    print(f"wrote {web_out}")
     print(f"{len(modes)} modes; RTP {min(rtps):.4f}-{max(rtps):.4f}")
+    if carried:
+        print(
+            f"WARNING: carried {len(carried)} mode(s) this build does not produce: "
+            f"{', '.join(sorted(carried)[:4])}"
+            f"{' …' if len(carried) > 4 else ''}\n"
+            "  They are shipping to players without certified math behind them.\n"
+            "  Either add them to paytables.json and the BetMode list, or remove\n"
+            "  them from the client."
+        )
 
 
 if __name__ == "__main__":
