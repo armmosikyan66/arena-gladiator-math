@@ -1,10 +1,10 @@
 ---
 type: index
 tags: [meta]
-updated: 2026-08-28
+updated: 2026-08-31
 source_count: 3
 page_count: 12
-last_change: 2026-08-30 Pulse gated to extra-open books (Earn re-solve to the same 0.9650; buy/off math unchanged); batching_size fix for odd book counts.
+last_change: 2026-08-31 Buy 10× / 100× force the marked pick into the ten (Lumen always catches).
 ---
 
 # Math SDK Wiki
@@ -44,7 +44,7 @@ _Vendor and external docs, summarized — not copied._
 ## Domain
 
 - [[domain/stake-engine-publish]] — Books, LUT, `index.json`, payout units, RGS.
-- [[domain/stake-rating-limits]] — 2-Star / 3-Star gates (P5K, P10K, CVaR, ETL, stddev, caps). Max payout is measured against the **base bet**, so bonus-buy cost divides the usable ceiling. Volatility is also rated categorically, and a mode can be rated Extreme at half the stddev ceiling.
+- [[domain/stake-rating-limits]] — 2-Star / 3-Star gates (P5K, P10K, CVaR, ETL, ETL sum, stddev, caps). Max payout is measured against the **base bet**, so bonus-buy cost divides the usable ceiling. Volatility is also rated categorically, and a mode can be rated Extreme at half the stddev ceiling. ETL sum (etl40+etl10k) is a separate dashboard gate: 1.3 / 1.5.
 
 ## Concepts
 

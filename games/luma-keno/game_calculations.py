@@ -4,6 +4,7 @@ from math import comb
 
 from keno_pick_one import (
     BUY_SUFFIXES,
+    lumen_placed_on_pick,
     off_outcomes,
     off_pay,
     off_weight,
@@ -13,7 +14,7 @@ from keno_pick_one import (
     settle_pay as settle_amount,
     spin_outcomes,
     spin_weight,
-    weight_scale,
+    weight_total,
 )
 from src.executables.executables import Executables
 
@@ -78,7 +79,7 @@ class GameCalculations(Executables):
     ) -> float:
         base = self.pay_for(risk, k, hits, earn, buy)
         if earn:
-            return settle_amount(base, lumen_hit, pulse, risk)
+            return settle_amount(base, lumen_hit, pulse, risk, buy)
         return base
 
     def mode_rtp(self, risk: str, k: int, earn: bool, buy: str | None = None) -> float:
@@ -89,15 +90,18 @@ class GameCalculations(Executables):
                 for spin in off_outcomes(k)
             ) / total
         bought = buy is not None
+        placed = lumen_placed_on_pick(buy, k)
         paying = paying_from_table(self.pay_row_for(risk, k, True, buy))
-        total = comb(self.config.keno_pool, k) * self.config.keno_drawn * weight_scale()
+        total = weight_total(k, placed=placed)
         # Buy rounds are priced per cost, so the return has to be divided by what
         # the round charged before it can be compared with a 1x mode.
         cost = BUY_SUFFIXES[buy] if bought else 1.0
         return sum(
-            spin_weight(k, spin, risk, paying=paying, bought=bought)
+            spin_weight(k, spin, risk, paying=paying, bought=bought, placed=placed)
             * self.settle_pay(
                 risk, k, spin.total_hits, spin.lumen_hit, True, spin.pulse, buy
             )
-            for spin in spin_outcomes(k, self.config.keno_drawn, paying, bought)
+            for spin in spin_outcomes(
+                k, self.config.keno_drawn, paying, bought, placed
+            )
         ) / (total * cost)

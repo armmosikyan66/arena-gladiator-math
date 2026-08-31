@@ -1,10 +1,11 @@
 """Single-shot keno round."""
 
 from keno_pick_one import (
-    LUMEN_BOOST,
     PULSE_BOOST,
     REASON_TO_EVENT,
     lumen_boost_applied,
+    lumen_boost_for,
+    lumen_placed_on_pick,
     pulse_boost_applied,
 )
 from game_events import keno_catch_event, keno_start_event, keno_win_events
@@ -32,9 +33,10 @@ class GameState(GameStateOverride):
                     risk,
                     k,
                     self.pay_row_for(risk, k, True, buy),
-                    LUMEN_BOOST[risk],
+                    lumen_boost_for(risk, buy),
                     True,
                     PULSE_BOOST[risk],
+                    lumen_placed_on_pick(buy, k),
                 )
                 keno_catch_event(
                     self,
@@ -45,7 +47,7 @@ class GameState(GameStateOverride):
                     spin.extras,
                     REASON_TO_EVENT[spin.extra_reason],
                     spin.extra_hits,
-                    lumen_boost_applied(base, spin.lumen_hit, risk),
+                    lumen_boost_applied(base, spin.lumen_hit, risk, buy),
                     pulse_boost_applied(after_lumen, spin.pulse, risk),
                 )
             else:

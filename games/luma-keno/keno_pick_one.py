@@ -175,6 +175,22 @@ LUMEN_BOOST = {
     "medium": 2.0,
     "high": 2.0,
 }
+# Buy chips multiply Lumen by the chip cost, not the Earn ×2. Priced into the
+# cost-unit solve so RTP stays on target: the advertised rows shrink, the
+# catch still pays 10× / 100× the table. Earn is unchanged.
+BUY_LUMEN_BOOST = {
+    "buy10": 10.0,
+    "buy100": 100.0,
+}
+
+
+def lumen_boost_for(risk: str, buy: str | None = None) -> float:
+    """Lumen multiplier for this mode. Off never calls this (boost is 1)."""
+    if buy is not None:
+        return BUY_LUMEN_BOOST[buy]
+    return LUMEN_BOOST[risk]
+
+
 EXTRA_REASONS = ("none", "lumen", "near", "luck", "bought")
 REASON_TO_EVENT = {
     "none": None,
@@ -211,6 +227,24 @@ class SpinCriteria:
 #: Buy chips, and the stake multiple each costs. A buy round settles on the Earn
 #: rules with the extras forced open, so `parse_mode_name` reports it as earn.
 BUY_SUFFIXES = {"buy10": 10.0, "buy100": 100.0}
+
+#: Both buy chips (2+ picks) place the Lumen mark on one of the player's picks
+#: and force that number into the main ten, so the catch is certain. Remaining
+#: hits are Hypergeometric on the other k-1 picks vs 9 draws from 39 — P(h=0)
+#: is 0, P(lumenHit)=1. Lumen still pays BUY_LUMEN_BOOST (10× / 100×) only on
+#: a paying row; a dead chart stays dead. The cost-unit solve prices the
+#: always-on boost in, so advertised rows shrink.
+#:
+#: pick_1 is excluded: forcing the only pick into the draw collapses the mode
+#: onto h=1 + Pulse, which fails Base Mode STD (~0.26 vs 0.60). It still uses
+#: the chip boost at the Earn catch rate (picks/40).
+GUARANTEED_LUMEN_BUYS = frozenset({"buy10", "buy100"})
+MIN_GUARANTEE_PICKS = 2
+
+
+def lumen_placed_on_pick(buy: str | None, k: int) -> bool:
+    """Whether this mode sits Lumen on a pick and forces that pick into the draw."""
+    return buy in GUARANTEED_LUMEN_BUYS and k >= MIN_GUARANTEE_PICKS
 
 
 def parse_mode_name(name: str) -> tuple[str, int, bool, str | None]:
@@ -265,7 +299,20 @@ def off_pay(spin: SpinCriteria, table: list[float]) -> float:
     return round(base + PICK_ONE_BONUS, 1) if spin.miss_bonus else base
 
 
-def base_hit_weight(k: int, h: int, drawn: int = DRAWN, rest: int = REST) -> int:
+def base_hit_weight(
+    k: int, h: int, drawn: int = DRAWN, rest: int = REST, placed: bool = False
+) -> int:
+    """Hypergeometric ways to realize `h` main hits on a `k`-pick card.
+
+    `placed` (buy 10× / 100×, 2+ picks): one pick is forced into the ten, so
+    the remaining k-1 picks are drawn from 39 against 9 spots. h=0 is
+    impossible. Mark-slot multiplicity (`k`) lives in `lumen_hit_factor`, not
+    here, so this count is the draw side only.
+    """
+    if placed:
+        if h < 1 or h > k or (k - h) > rest or h > drawn:
+            return 0
+        return comb(drawn - 1, h - 1) * comb(rest, k - h)
     if h < 0 or h > k or (k - h) > rest or h > drawn:
         return 0
     return comb(drawn, h) * comb(rest, k - h)
@@ -361,7 +408,20 @@ def parse_spin_criteria(criteria: str) -> SpinCriteria:
     raise ValueError(f"cannot parse hits from criteria {criteria}")
 
 
-def lumen_books_for_hits(hits: int, drawn: int = DRAWN) -> list[bool]:
+def lumen_books_for_hits(
+    hits: int, drawn: int = DRAWN, placed: bool = False, k: int = 0
+) -> list[bool]:
+    """Which lumenHit flags exist at this hit count.
+
+    Default: the mark is one of the `drawn` numbers, so a partial catch still
+    splits — some of those numbers are picks, some are not.
+
+    `placed` (buy 10× / 100×, 2+ picks): the marked pick is forced into the
+    ten, so every legal book catches. h=0 has no books (the forced pick is a
+    hit). `k` is unused here; mark-slot multiplicity lives in the factor.
+    """
+    if placed:
+        return [True] if hits >= 1 else []
     if hits <= 0:
         return [False]
     if hits >= drawn:
@@ -369,8 +429,19 @@ def lumen_books_for_hits(hits: int, drawn: int = DRAWN) -> list[bool]:
     return [False, True]
 
 
-def lumen_hit_factor(hits: int, lumen_hit: bool, drawn: int = DRAWN) -> int:
-    """How many of the `drawn` marked slots realize this lumenHit flag."""
+def lumen_hit_factor(
+    hits: int, lumen_hit: bool, drawn: int = DRAWN, k: int = 0, placed: bool = False
+) -> int:
+    """How many marked-slot assignments realize this lumenHit flag.
+
+    Default: the mark is one of the `drawn` numbers — `hits` of them are picks,
+    so P(lumenHit | h) = h/drawn and the factor is `hits` or `drawn - hits`.
+
+    `placed`: any of the k picks can be the mark, and that pick is forced in,
+    so every catch book carries `k` slots and miss books carry none.
+    """
+    if placed:
+        return k if lumen_hit else 0
     return hits if lumen_hit else drawn - hits
 
 
@@ -456,10 +527,11 @@ def spin_outcomes(
     drawn: int = DRAWN,
     paying: frozenset[int] | None = None,
     bought: bool = False,
+    placed: bool = False,
 ) -> list[SpinCriteria]:
     out: list[SpinCriteria] = []
     for main_hits in range(k + 1):
-        for lumen_hit in lumen_books_for_hits(main_hits, drawn):
+        for lumen_hit in lumen_books_for_hits(main_hits, drawn, placed, k):
             for extras, reason, extra_hits in extra_outcomes(
                 k, main_hits, lumen_hit, paying, bought
             ):
@@ -478,8 +550,9 @@ def book_count_for_picks(
     drawn: int = DRAWN,
     paying: frozenset[int] | None = None,
     bought: bool = False,
+    placed: bool = False,
 ) -> int:
-    return len(spin_outcomes(k, drawn, paying, bought))
+    return len(spin_outcomes(k, drawn, paying, bought, placed))
 
 
 def hit_criteria_base(hits: int, miss_bonus: bool = False) -> str:
@@ -502,11 +575,11 @@ def spin_weight(
     rest: int = REST,
     paying: frozenset[int] | None = None,
     bought: bool = False,
+    placed: bool = False,
 ) -> int:
     base = (
-        comb(drawn, spin.main_hits)
-        * comb(rest, k - spin.main_hits)
-        * lumen_hit_factor(spin.main_hits, spin.lumen_hit, drawn)
+        base_hit_weight(k, spin.main_hits, drawn, rest, placed)
+        * lumen_hit_factor(spin.main_hits, spin.lumen_hit, drawn, k, placed)
     )
     pair_total = comb(rest, EXTRA_N)
     pair = extra_pair_weight(k, spin.main_hits, spin.extra_hits)
@@ -548,28 +621,49 @@ def weight_scale() -> int:
     return CHANCE_DENOM * comb(REST, EXTRA_N) * CHANCE_DENOM
 
 
-def lumen_pay(base: float, lumen_hit: bool, risk: str) -> float:
-    """Table × Lumen. Catching does not rescue a 0× row."""
+def lumen_pay(
+    base: float, lumen_hit: bool, risk: str, buy: str | None = None, cost: float = 1.0
+) -> float:
+    """Table × Lumen. Catching does not rescue a 0× row.
+
+    Rounds to 0.1× the *base bet* (LUT multiple-of-10), not 0.1 of whatever
+    units `base` is in. Buy ladders are solved in cost units (0.001 of a 100×
+    chip is 0.1× stake); rounding those to 1dp would snap them to 0 or 0.1 and
+    destroy the RTP.
+    """
     if lumen_hit and base > 0:
-        return round(float(base) * LUMEN_BOOST[risk], 1)
-    return round(float(base), 1)
+        amount = float(base) * lumen_boost_for(risk, buy)
+    else:
+        amount = float(base)
+    return round(round(amount * cost, 1) / cost, 10)
 
 
-def pulse_pay(amount: float, pulse: bool, risk: str) -> float:
+def pulse_pay(
+    amount: float, pulse: bool, risk: str, cost: float = 1.0
+) -> float:
     """Paying table × Pulse. Pulse does not rescue a 0× row."""
     if pulse and amount > 0:
-        return round(float(amount) * PULSE_BOOST[risk], 1)
-    return round(float(amount), 1)
+        amount = float(amount) * PULSE_BOOST[risk]
+    return round(round(float(amount) * cost, 1) / cost, 10)
 
 
-def settle_pay(base: float, lumen_hit: bool, pulse: bool, risk: str) -> float:
+def settle_pay(
+    base: float,
+    lumen_hit: bool,
+    pulse: bool,
+    risk: str,
+    buy: str | None = None,
+    cost: float = 1.0,
+) -> float:
     """Table × Lumen × Pulse. Neither bonus rescues a 0× row."""
-    return pulse_pay(lumen_pay(base, lumen_hit, risk), pulse, risk)
+    return pulse_pay(lumen_pay(base, lumen_hit, risk, buy, cost), pulse, risk, cost)
 
 
-def lumen_boost_applied(base: float, lumen_hit: bool, risk: str) -> float:
+def lumen_boost_applied(
+    base: float, lumen_hit: bool, risk: str, buy: str | None = None
+) -> float:
     if lumen_hit and base > 0:
-        return LUMEN_BOOST[risk]
+        return lumen_boost_for(risk, buy)
     return 1.0
 
 
@@ -579,13 +673,26 @@ def pulse_boost_applied(amount: float, pulse: bool, risk: str) -> float:
     return 1.0
 
 
-def weight_total(k: int, drawn: int = DRAWN) -> int:
+def weight_total(k: int, drawn: int = DRAWN, placed: bool = False) -> int:
+    """Total book weight for `k` picks: every draw configuration × every mark slot.
+
+    Default: C(40, k) cards × `drawn` mark slots among the ten.
+    `placed`: choose which pick is marked (`k`), force it into the ten, then
+    choose the other k-1 picks from the remaining 39 — C(39, k-1) · k.
+    """
+    if placed:
+        return k * comb(POOL - 1, k - 1) * weight_scale()
     return comb(POOL, k) * drawn * weight_scale()
 
 
 @lru_cache(maxsize=None)
 def effective_coeff(
-    risk: str, k: int, paying: frozenset[int], bought: bool = False
+    risk: str,
+    k: int,
+    paying: frozenset[int],
+    bought: bool = False,
+    placed: bool = False,
+    buy: str | None = None,
 ) -> tuple[float, ...]:
     """RTP = sum_h coeff[h] * advertised[h] when advertised[h] > 0 iff h in paying.
 
@@ -597,11 +704,14 @@ def effective_coeff(
     `bought` forces the extras open, which is the buy chips' whole product. It
     shifts weight into the higher total-hit buckets rather than adding a
     channel, so the coefficients stay a plain RTP decomposition.
+
+    `placed` forces the marked pick into the ten (always catch; hit counts
+    shift). `buy` selects BUY_LUMEN_BOOST (10× / 100×) instead of Earn ×2.
     """
-    total = weight_total(k)
-    boost = LUMEN_BOOST[risk]
+    total = weight_total(k, placed=placed)
+    boost = lumen_boost_for(risk, buy)
     coeff = [0.0] * (k + 1)
-    for spin in spin_outcomes(k, paying=paying, bought=bought):
+    for spin in spin_outcomes(k, paying=paying, bought=bought, placed=placed):
         hits = spin.total_hits
         if hits not in paying:
             continue
@@ -609,43 +719,77 @@ def effective_coeff(
         if spin.pulse:
             factor *= PULSE_BOOST[risk]
         coeff[hits] += (
-            spin_weight(k, spin, risk, paying=paying, bought=bought) * factor / total
+            spin_weight(k, spin, risk, paying=paying, bought=bought, placed=placed)
+            * factor
+            / total
         )
     return tuple(coeff)
 
 
 def settled_pairs(
-    risk: str, k: int, table: list[float], bought: bool = False
+    risk: str,
+    k: int,
+    table: list[float],
+    bought: bool = False,
+    placed: bool = False,
+    buy: str | None = None,
+    cost: float = 1.0,
 ) -> list[tuple[int, float]]:
     """(weight, settled multiplier) for every spin book."""
     paying = paying_from_table(table)
     return [
         (
-            spin_weight(k, spin, risk, paying=paying, bought=bought),
-            settle_pay(table[spin.total_hits], spin.lumen_hit, spin.pulse, risk),
+            spin_weight(k, spin, risk, paying=paying, bought=bought, placed=placed),
+            settle_pay(
+                table[spin.total_hits], spin.lumen_hit, spin.pulse, risk, buy, cost
+            ),
         )
-        for spin in spin_outcomes(k, paying=paying, bought=bought)
+        for spin in spin_outcomes(k, paying=paying, bought=bought, placed=placed)
     ]
 
 
 def settled_rtp(
-    risk: str, k: int, table: list[float], bought: bool = False
+    risk: str,
+    k: int,
+    table: list[float],
+    bought: bool = False,
+    placed: bool = False,
+    buy: str | None = None,
+    cost: float = 1.0,
 ) -> float:
-    total = weight_total(k)
-    return sum(w * m for w, m in settled_pairs(risk, k, table, bought)) / total
+    total = weight_total(k, placed=placed)
+    return (
+        sum(w * m for w, m in settled_pairs(risk, k, table, bought, placed, buy, cost))
+        / total
+    )
 
 
 def settled_stats(
-    risk: str, k: int, table: list[float], bought: bool = False
+    risk: str,
+    k: int,
+    table: list[float],
+    bought: bool = False,
+    placed: bool = False,
+    cost: float = 1.0,
+    buy: str | None = None,
 ) -> dict:
-    total = weight_total(k)
-    pairs = settled_pairs(risk, k, table, bought)
+    """Settled moments. `table` and `cost` must share a denomination.
+
+    The solver grades buy ladders in *cost units* (then scales on export), so
+    pass the chip cost there. Exported / dashboard tables are already in base-
+    bet units — pass `cost=1`. Dashboard ETL>10k is 10,000× the base bet, so
+    the cutoff in table units is `10000 / cost`. ETL sum is etl40 + etl10k
+    and double-counts any win that clears both lines.
+    """
+    total = weight_total(k, placed=placed)
+    pairs = settled_pairs(risk, k, table, bought, placed, buy, cost)
     rtp = sum(w * m for w, m in pairs) / total
     var = sum(w * (m - rtp) ** 2 for w, m in pairs) / total
     p5k = sum(w for w, m in pairs if m >= 5000) / total
     p10k = sum(w for w, m in pairs if m >= 10000) / total
     etl40 = sum(w * m for w, m in pairs if m >= 40) / total
-    etl10k = sum(w * m for w, m in pairs if m >= 10000) / total
+    etl10k_cut = 10000.0 / cost
+    etl10k = sum(w * m for w, m in pairs if m >= etl10k_cut) / total
     ranked = sorted(pairs, key=lambda t: t[1])
     cum = 0.0
     tail_start = ranked[0][1] if ranked else 0.0
@@ -663,6 +807,7 @@ def settled_stats(
         "p10k": p10k,
         "etl40": etl40,
         "etl10k": etl10k,
+        "etl_sum": etl40 + etl10k,
         "cvar": cvar,
         "max_m": max(m for _, m in pairs),
         "hit_rate": sum(w for w, m in pairs if m > 0) / total,
@@ -702,13 +847,16 @@ def base_stats(k: int, table: list[float]) -> dict:
     cvar = (
         sum(w * m for w, m in pairs if m >= tail_start) / total / tail_p
     ) if tail_p else 0.0
+    etl40 = sum(w * m for w, m in pairs if m >= 40) / total
+    etl10k = sum(w * m for w, m in pairs if m >= 10000) / total
     return {
         "rtp": rtp,
         "std": var**0.5,
         "p5k": sum(w for w, m in pairs if m >= 5000) / total,
         "p10k": sum(w for w, m in pairs if m >= 10000) / total,
-        "etl40": sum(w * m for w, m in pairs if m >= 40) / total,
-        "etl10k": sum(w * m for w, m in pairs if m >= 10000) / total,
+        "etl40": etl40,
+        "etl10k": etl10k,
+        "etl_sum": etl40 + etl10k,
         "cvar": cvar,
         "max_m": max(m for _, m in pairs),
         "hit_rate": sum(w for w, m in pairs if m > 0) / total,
@@ -812,6 +960,9 @@ assert parse_spin_criteria("hits_3_lumen_1_extra_1_lumen_1_pulse_1") == SpinCrit
 assert lumen_pay(2.6, True, "classic") == 5.2
 assert settle_pay(2.6, True, True, "classic") == 10.4
 assert settle_pay(2.6, True, True, "medium") == 15.6
+assert lumen_pay(0.088, False, "classic", cost=100) == 0.088
+assert lumen_pay(0.088, True, "classic", "buy100", 100) == 8.8
+assert settle_pay(0.088, True, True, "classic", "buy100", 100) == 17.6
 assert lumen_pay(0.0, True, "high") == 0.0
 assert pulse_pay(0.0, True, "medium") == 0.0
 assert lumen_pay(2.6, False, "classic") == 2.6
@@ -840,3 +991,52 @@ assert sum(
     spin_weight(8, spin, "classic", paying=CLASSIC_8_PAYING)
     for spin in spin_outcomes(8, paying=CLASSIC_8_PAYING)
 ) == comb(40, 8) * DRAWN * weight_scale()
+# --- buy placed Lumen: guaranteed catch --------------------------------------
+# Sample space is C(39, k-1) · k · scale (force one pick in, mark any of k).
+assert all(
+    sum(spin_weight(k, spin, r, bought=True, placed=True) for spin in spin_outcomes(k, bought=True, placed=True))
+    == weight_total(k, placed=True)
+    for k in range(MIN_GUARANTEE_PICKS, 11)
+    for r in ("classic", "high")
+), "placed Lumen sample space is not C(39,k-1)·k"
+assert all(
+    weight_total(k, placed=True) == k * comb(POOL - 1, k - 1) * weight_scale()
+    for k in range(MIN_GUARANTEE_PICKS, 11)
+), "placed weight_total is not C(39,k-1)·k·scale"
+# Catch is certain: every book has lumenHit, and h=0 does not exist.
+assert all(
+    abs(
+        sum(
+            spin_weight(k, spin, r, bought=True, placed=True)
+            for spin in spin_outcomes(k, bought=True, placed=True)
+            if spin.lumen_hit
+        )
+        / weight_total(k, placed=True)
+        - 1.0
+    )
+    < 1e-12
+    for k in range(MIN_GUARANTEE_PICKS, 11)
+    for r in ("classic", "medium")
+), "placed Lumen catch rate is not 1"
+assert not any(
+    s.main_hits == 0 or not s.lumen_hit
+    for k in range(MIN_GUARANTEE_PICKS, 11)
+    for s in spin_outcomes(k, bought=True, placed=True)
+), "placed Lumen booked a miss or a zero-hit card"
+# Remaining hits: Vandermonde C(9, h-1)·C(30, k-h) sums to C(39, k-1).
+assert all(
+    sum(base_hit_weight(k, h, placed=True) for h in range(k + 1)) == comb(POOL - 1, k - 1)
+    for k in range(MIN_GUARANTEE_PICKS, 11)
+), "placed hit weights do not sum to C(39, k-1)"
+assert lumen_hit_factor(3, True, k=5, placed=True) == 5
+assert lumen_hit_factor(3, False, k=5, placed=True) == 0
+assert lumen_books_for_hits(0, placed=True, k=5) == []
+assert lumen_books_for_hits(1, placed=True, k=5) == [True]
+assert lumen_books_for_hits(5, placed=True, k=5) == [True]
+# The flag is off on Earn and on both chips' pick_1.
+assert not lumen_placed_on_pick(None, 5)
+assert lumen_placed_on_pick("buy10", 2) and not lumen_placed_on_pick("buy10", 1)
+assert lumen_placed_on_pick("buy100", 2) and not lumen_placed_on_pick("buy100", 1)
+assert lumen_boost_for("high") == 2.0
+assert lumen_boost_for("high", "buy10") == 10.0
+assert lumen_boost_for("high", "buy100") == 100.0

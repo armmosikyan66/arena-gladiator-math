@@ -58,6 +58,7 @@ class WinStatistics:
         prob10k=None,
         etl40b=None,
         etl10k=None,
+        etl_sum=None,
         cvar=None,
     ):
         self.win_distribution = win_distribution
@@ -83,6 +84,7 @@ class WinStatistics:
         self.prob10k = prob10k
         self.etl40b = etl40b
         self.etl10k = etl10k
+        self.etl_sum = etl_sum
         self.cvar = cvar
 
     def to_dict(self):
@@ -194,6 +196,10 @@ def verify_mode_volatility(name: str, MathStats: object) -> dict:
         "prob10k": 0.5e-2,
         "etl40b": 0.9,
         "etl10k": 0.8,
+        # Dashboard Expected Tail Liability (Sum) = etl40 + etl10k. Wins
+        # ≥10,000× the base bet sit in both, so the sum can fail while each
+        # component passes. 3-Star 1.500 / 2-Star 1.300.
+        "etl_sum": 1.5,
         "cvar": 800,
         "rtp": 0.967,
         "max_win": 100_000 * 100,
@@ -233,6 +239,7 @@ def get_lut_statistics(
     if bet_cost:
         etl40 /= bet_cost
         etl10k /= bet_cost
+    etl_sum = etl40 + etl10k
     MathStats = WinStatistics(
         win_distribution=win_distribution,
         num_events=num_events,
@@ -256,6 +263,7 @@ def get_lut_statistics(
         prob10k=p10k,
         etl40b=etl40,
         etl10k=etl10k,
+        etl_sum=etl_sum,
         cvar=cvarp01,
     )
     median = get_distribution_median(win_distribution, weight_range)

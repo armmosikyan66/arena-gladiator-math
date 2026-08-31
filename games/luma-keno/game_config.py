@@ -10,10 +10,11 @@ import os
 
 from keno_pick_one import (
     BUY_SUFFIXES,
-    LUMEN_BOOST,
     PULSE_BOOST,
     hit_criteria_base,
     hit_criteria_name,
+    lumen_boost_for,
+    lumen_placed_on_pick,
     mode_name,
     off_outcomes,
     paying_from_table,
@@ -69,13 +70,13 @@ class GameConfig(Config):
         self.keno_buy_paytable = {buy: _tables(buy) for buy in BUY_SUFFIXES}
         off_max = max(max(row) for tables in self.keno_paytable.values() for row in tables.values())
         earn_max = max(
-            round(max(row) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1)
+            round(max(row) * lumen_boost_for(risk) * PULSE_BOOST[risk], 1)
             for risk, tables in self.keno_earn_paytable.items()
             for row in tables.values()
         )
         buy_max = max(
-            round(max(row) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1)
-            for tables in self.keno_buy_paytable.values()
+            round(max(row) * lumen_boost_for(risk, buy) * PULSE_BOOST[risk], 1)
+            for buy, tables in self.keno_buy_paytable.items()
             for risk, rows in tables.items()
             for row in rows.values()
         )
@@ -124,7 +125,7 @@ class GameConfig(Config):
             name=mode_name(risk, k, True),
             cost=1.0,
             rtp=self.rtp,
-            max_win=round(max(self.keno_earn_paytable[risk][k]) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1),
+            max_win=round(max(self.keno_earn_paytable[risk][k]) * lumen_boost_for(risk) * PULSE_BOOST[risk], 1),
             auto_close_disabled=False,
             is_feature=True,
             is_buybonus=False,
@@ -150,13 +151,14 @@ class GameConfig(Config):
         """
         table = self.keno_buy_paytable[buy][risk][k]
         paying = paying_from_table(table)
-        outcomes = spin_outcomes(k, self.keno_drawn, paying, True)
+        placed = lumen_placed_on_pick(buy, k)
+        outcomes = spin_outcomes(k, self.keno_drawn, paying, True, placed)
         n = len(outcomes)
         return BetMode(
             name=mode_name(risk, k, True, buy),
             cost=BUY_SUFFIXES[buy],
             rtp=self.rtp,
-            max_win=round(max(table) * LUMEN_BOOST[risk] * PULSE_BOOST[risk], 1),
+            max_win=round(max(table) * lumen_boost_for(risk, buy) * PULSE_BOOST[risk], 1),
             auto_close_disabled=False,
             is_feature=True,
             is_buybonus=True,

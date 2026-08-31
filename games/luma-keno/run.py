@@ -13,6 +13,7 @@ from gamestate import GameState
 from keno_pick_one import (
     BUY_SUFFIXES,
     book_count_for_picks,
+    lumen_placed_on_pick,
     off_outcomes,
     off_weight,
     parse_mode_name,
@@ -52,7 +53,12 @@ def write_exact_lookup_tables(gamestate: GameState) -> None:
                     )
                     paying = paying_from_table(table)
                     weight = spin_weight(
-                        k, spin, risk, paying=paying, bought=buy is not None
+                        k,
+                        spin,
+                        risk,
+                        paying=paying,
+                        bought=buy is not None,
+                        placed=lumen_placed_on_pick(buy, k),
                     )
                 else:
                     weight = off_weight(k, spin)
@@ -120,7 +126,10 @@ if __name__ == "__main__":
             for buy in BUY_SUFFIXES:
                 buy_paying = paying_from_table(config.keno_buy_paytable[buy][risk][k])
                 num_sim_args[f"{risk}_pick_{k}_{buy}"] = book_count_for_picks(
-                    k, paying=buy_paying, bought=True
+                    k,
+                    paying=buy_paying,
+                    bought=True,
+                    placed=lumen_placed_on_pick(buy, k),
                 )
 
     run_conditions = {

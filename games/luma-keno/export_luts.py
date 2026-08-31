@@ -14,6 +14,7 @@ from keno_pick_one import (
     BUY_SUFFIXES,
     REASON_TO_EVENT,
     book_count_for_picks,
+    lumen_placed_on_pick,
     off_outcomes,
     off_pay,
     off_weight,
@@ -23,7 +24,7 @@ from keno_pick_one import (
     paying_from_table,
     settle_pay,
     spin_weight,
-    weight_scale,
+    weight_total,
 )
 from web_paths import resolve_web_file
 
@@ -47,6 +48,8 @@ def export_mode(
     earn: bool,
     cost: float = 1.0,
     bought: bool = False,
+    placed: bool = False,
+    buy: str | None = None,
 ) -> dict:
     lut_path = os.path.join(PUBLISH, f"lookUpTable_{mode}_0.csv")
     seg_path = os.path.join(LOOKUPS, f"lookUpTableSegmented_{mode}.csv")
@@ -66,11 +69,11 @@ def export_mode(
             if earn:
                 paying = paying_from_table(paytable)
                 base = paytable[spin.total_hits]
-                expected = int(round(settle_pay(base, spin.lumen_hit, spin.pulse, risk) * 100))
+                expected = int(round(settle_pay(base, spin.lumen_hit, spin.pulse, risk, buy) * 100))
                 expect_weight = spin_weight(
-                    k, spin, risk, paying=paying, bought=bought
+                    k, spin, risk, paying=paying, bought=bought, placed=placed
                 )
-                after_lumen = lumen_boost_applied(base, spin.lumen_hit, risk)
+                after_lumen = lumen_boost_applied(base, spin.lumen_hit, risk, buy)
             else:
                 base = off_pay(spin, paytable)
                 expected = int(round(base * 100))
@@ -94,7 +97,7 @@ def export_mode(
                     "extraHits": spin.extra_hits if earn and spin.extras else 0,
                     "extraReason": REASON_TO_EVENT[spin.extra_reason] if earn else None,
                     "pulse": pulse_boost_applied(
-                        settle_pay(base, spin.lumen_hit, False, risk), spin.pulse, risk
+                        settle_pay(base, spin.lumen_hit, False, risk, buy), spin.pulse, risk
                     )
                     if earn
                     else 1.0,
@@ -114,14 +117,14 @@ def export_mode(
 
     rows.sort(key=lambda r: r["id"])
     expect_n = (
-        book_count_for_picks(k, DRAWN, paying_from_table(paytable), bought)
+        book_count_for_picks(k, DRAWN, paying_from_table(paytable), bought, placed)
         if earn
         else len(off_outcomes(k))
     )
     assert len(rows) == expect_n, f"{mode}: expected {expect_n} books, found {len(rows)}"
 
     total = sum(r["weight"] for r in rows)
-    expect_total = comb(POOL, k) * DRAWN * weight_scale() if earn else comb(POOL, k)
+    expect_total = weight_total(k, placed=placed) if earn else comb(POOL, k)
     assert total == expect_total, f"{mode}: weight sum {total} != {expect_total}"
 
     return {
@@ -171,7 +174,17 @@ def main() -> None:
             for k_s, row in tables.items():
                 k = int(k_s)
                 mode = f"{risk}_pick_{k}_{buy}"
-                modes[mode] = export_mode(mode, k, risk, row, True, cost, True)
+                modes[mode] = export_mode(
+                    mode,
+                    k,
+                    risk,
+                    row,
+                    True,
+                    cost,
+                    True,
+                    lumen_placed_on_pick(buy, k),
+                    buy,
+                )
 
     doc = {
         "gameId": "luma-keno",

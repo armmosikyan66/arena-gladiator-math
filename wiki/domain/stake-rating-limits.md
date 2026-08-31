@@ -1,7 +1,7 @@
 ---
 type: domain
 tags: [stake-engine, rating, validation, cvar, etl]
-updated: 2026-08-25
+updated: 2026-08-31
 ---
 
 # Stake rating limits (math validation)
@@ -23,6 +23,7 @@ constraints.
 | CVaR / bet (worst 0.1% tail) | ≤ 700 | ≤ 800 | Stake-tool verif.md; repo uses 800 |
 | ETL > 40× cost (RTP share / contrib) | ≤ 0.8 | ≤ 0.9 | verif.md; `rgs_verification` 0.9 |
 | ETL > 10,000× | ≤ 0.6 | ≤ 0.8 | verif.md; repo 0.8 |
+| ETL sum (etl40 + etl10k) | ≤ 1.3 | ≤ 1.5 | dashboard 2026-08-31. Wins ≥10,000× the **base bet** sit in both, so the sum can fail while each piece passes |
 | Base stddev (costMultiplier = 1) | 0.6–50 | 0.6–60 | verif.md; dashboard Base Mode STD treats 0.60 as a failing equality — leave margin (luma-keno `STD_MIN=0.62`) |
 | Max payout multiplier | 25,000× ⚠️ | 100,000× | verif.md; dashboard |
 | Max cost multiplier | 1,000 | 1,500 | verif.md (not max payout) |
@@ -110,8 +111,8 @@ and `math/utils/rgs_verification.py`:
 | CVaR per-stake | `cvar` | E[m \| m in worst 0.1% tail] / bet_cost (`cutoff=0.999`) |
 | CVaR absolute | `cvar * bet` | same tail expectation in money |
 | ETL > 40× | `etl40b` | Σ p_i m_i for m_i ≥ 40 × bet_cost |
-| ETL > 10,000× | `etl10k` | Σ p_i m_i for m_i ≥ 10,000 |
-| ETL sum | etl40 + etl10k unless ACP defines otherwise | **?** confirm before treating as a separate gate |
+| ETL > 10,000× | `etl10k` | Σ p_i m_i for m_i ≥ 10,000× the **base bet** (not `/ bet_cost` before the cutoff) |
+| ETL sum | `etl_sum` = etl40 + etl10k | Dashboard gate. **1.300 (2-Star) / 1.500 (3-Star)**. Confirmed 2026-08-31 on luma-keno `high_pick_4_buy100` (1.533 / 1.500). Local solver `GATES["etl_sum"]=1.45`; `rgs_verification` 1.5 |
 | Max cost multiplier | BetMode `cost` | bonus-buy / mode cost; **≠** max payout |
 | Max payout multiplier | `max_win` from `verify_lookup_format` | largest LUT payout, as multiplier × 100. Against the **base bet**, never `/ bet_cost` |
 | Exposure | today: `maxWinning` dollars (`DEFAULT_MAX_PAYOUT`) | **?** brief forbids silently equating exposure to a payout cap unless the risk engine does |

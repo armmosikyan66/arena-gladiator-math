@@ -2,6 +2,55 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-08-31] feat | Buy 10× / 100× Lumen catch is guaranteed
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno/keno_pick_one.py, solve_paytables.py, paytables.json,
+  wiki/codebase/luma-keno.md, wiki/index.md
+- notes: Both buy chips (picks 2–10) now force the marked pick into the main
+  ten. P(lumenHit)=1, P(h=0)=0, remaining hits Hypergeometric on k−1 vs 9
+  of 39. Lumen still 10× / 100× on a paying row only. Advertised rows shrink
+  (every paying book carries the boost). pick_1 still does not place (STD).
+  Base Mode STD floor is cost=1 only. 160 modes 0.9630–0.9664 (0.34pp).
+  high_pick_4_buy100 base row [0, 0, 0, 0.9, 40.2], lumen-only 4,020×,
+  Pulse-on-top 8,040×, etl_sum 0.798.
+
+## [2026-08-31] feat | Buy 10× places Lumen; chip Lumen is 10× / 100×
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno/keno_pick_one.py, solve_paytables.py, paytables.json,
+  game_config.py, gamestate.py, export_luts.py, wiki/codebase/luma-keno.md,
+  wiki/index.md
+- notes: Both buy chips (picks 2–10) now place the Lumen mark on a pick
+  (catch 10/40). Lumen on a paying catch is BUY_LUMEN_BOOST 10× / 100×,
+  priced into the cost-unit solve — advertised rows shrink, house edge
+  stays 3.5%. Pulse still ×2 (medium ×3). pick_1 cannot carry placement
+  but still uses the chip boost. Buy grid is 0.1× of stake (0.01 / 0.001
+  of cost) so a 0.1-of-cost cell cannot explode under ×100. 160 modes
+  0.9630–0.9664 (0.34pp). high_pick_4_buy100 base row [0, 0, 0, 10.1,
+  99.4], lumen-only 9,940×, etl_sum 0.583.
+
+## [2026-08-31] fix | ETL sum gate; shrink buy100 high pick_4 top
+
+- summary: wiki/domain/stake-rating-limits.md
+- touched: games/luma-keno/keno_pick_one.py, solve_paytables.py, paytables.json,
+  utils/rgs_verification.py, wiki/domain/stake-rating-limits.md,
+  wiki/codebase/luma-keno.md, wiki/index.md
+- notes: Dashboard Expected Tail Liability (Sum) is etl40 + etl10k and
+  double-counts wins that are both ≥40× cost and ≥10,000× the base bet.
+  Confirmed limits **1.300 (2-Star) / 1.500 (3-Star)**. `high_pick_4_buy100`
+  scored 1.533 because buy100 places Lumen on a pick, so a 4/4 always ×2
+  and the 7,290× advertised top settled at 14,580×. Local etl10k had been
+  using a 10,000 cutoff in *cost units* (100× too high on buy100), so the
+  solver never saw it.
+  Fix: cost-aware etl10k (`10000/cost`), `GATES["etl_sum"]=1.45`,
+  `rgs_verification` 1.5. When the sum fails, shrink the advertised top
+  (first under the 10k/Lumen line) and refill — leftover RTP to the 3-hit
+  (140× → 350×). Shipped `[0, 0, 0, 350, 4970]`, etl_sum 0.633, lumen-only
+  9,940×, Pulse-on-top 19,880×. 160 modes still 0.9630–0.9664 (0.34pp).
+  Side fix: `_fill_from` no longer infinite-loops when a lowered top cap
+  cannot absorb the remaining RTP.
+
 ## [2026-08-30] fix | Pulse gated to extra-open books (client-math contract)
 
 - summary: wiki/codebase/luma-keno.md

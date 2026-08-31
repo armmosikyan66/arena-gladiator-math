@@ -15,14 +15,15 @@ margin; do not sit on the gate.
 | `tail10000` P(X≥10,000×) | 0.005 | 0.010 | Brief. Local verifier uses 0.005. Always ≤ P5K |
 | `cvarPerStake` | 700 | 800 | CVaR of worst 0.1% tail / bet |
 | `tailLiability40` ETL>40×cost | 0.8 | 0.9 | Σ p·m for m ≥ 40×cost |
-| `tailLiability10000` ETL>10k× | 0.6 | 0.8 | Σ p·m for m ≥ 10,000 |
+| `tailLiability10000` ETL>10k× | 0.6 | 0.8 | Σ p·m for m ≥ 10,000× **base bet** |
+| `tailLiabilitySum` ETL40+ETL10k | 1.3 | 1.5 | Dashboard. Wins ≥10k× sit in both; sum can fail while each piece passes |
 | `maxBaseStdDev` | 50 | 60 | Also min 0.6 when costMultiplier=1 |
 | `maxPayoutMultiplier` | 25,000 | 100,000 | No outcome above this |
 | `maxCostMultiplier` | 1,000 | 1,500 | Mode cost; **not** max payout |
 
 Until ACP confirms Section 2 of the brief, **generated math must pass the
 intersection**: P5K ≤ 0.010, P10K ≤ 0.005, plus the 3-Star CVaR/ETL/stddev
-caps, so `utils/rgs_verification.py` does not warn.
+caps and ETL sum ≤ 1.5, so `utils/rgs_verification.py` does not warn.
 
 Repo RTP flag: `rtp > 0.967` is treated as a violation in
 `verify_mode_volatility`. Product target RTP still comes from GameConfig
@@ -58,6 +59,7 @@ baseStd <= maxBaseStdDev
 cvarPerStake <= cvarPerStake cap
 etl40 <= tailLiability40
 etl10k <= tailLiability10000
+etl_sum <= tailLiabilitySum
 exposure <= engine definition (today: maxWinning dollars — confirm)
 Σ p ~= 1
 RTP within tolerance

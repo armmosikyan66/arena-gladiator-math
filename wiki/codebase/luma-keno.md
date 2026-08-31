@@ -1,7 +1,7 @@
 ---
 type: codebase
 tags: [keno, luma-keno, rtp, publish, telemetry]
-updated: 2026-08-30
+updated: 2026-08-31
 ---
 
 # Luma Keno math
@@ -37,8 +37,8 @@ Sidebar **Off** is the certified 0.950 table with no bonuses. Sidebar
 Off RTP.
 
 Earn Lumen: always one of the main 10. Catching on a paying row
-multiplies by `LUMEN_BOOST` — **×2 on every risk**, and the same boost applies
-on both buy chips. Lumen does **not** rescue a 0× row.
+multiplies by `LUMEN_BOOST` — **×2 on every risk**. Buy chips use
+`BUY_LUMEN_BOOST` instead (**10× / 100×**). Lumen does **not** rescue a 0× row.
 
 > ⚠️ This page said high was ×5 until 2026-08-28. At ×5 it carried 67–74% of the
 > return on picks 5–10 through a channel paying on ~2.6% of rounds, leaving the
@@ -80,9 +80,45 @@ two apart.
 ## Buy chips
 
 Both chips are booked math as of 2026-08-28. `solve_buy()` solves them in the
-same pass as Earn, with `bought=True` (extras forced open — that is the entire
-purchase) and rows denominated in **cost units**, scaled by the cost on export.
-Lumen and Pulse then apply at the normal risk rate.
+same pass as Earn, with `bought=True` (extras forced open) and rows
+denominated in **cost units**, scaled by the cost on export.
+
+**Buy 10× and Buy 100× (picks 2–10)** both place the Lumen mark on one of
+the player's numbers and **force that pick into the main ten**
+(`lumen_placed_on_pick`, `kenoStart.lumenPlaced`). Catch rate is **1**.
+P(h=0)=0. Remaining hits: Hypergeometric on k−1 picks vs 9 draws from 39.
+pick_1 cannot carry the placement (forcing the only pick in collapses
+variance below Base Mode STD) but still uses the chip boost at the Earn
+catch rate. Dashboard Base Mode STD is cost=1 only — `check_gates` does
+not apply `STD_MIN` to buy chips.
+
+Lumen on a paying catch is **`BUY_LUMEN_BOOST`**: 10× on buy10, 100× on
+buy100 — not the Earn ×2. Pulse stays at the risk rate. The boost is priced
+into the coefficients so advertised rows shrink (every paying book now
+carries ×10/×100). Do not stack 10×/100× on the old Earn-rate tables. The
+buy ladder uses a **0.1×-of-stake grid** in cost units (`0.01` / `0.001`)
+because a 0.1-of-cost cell ×100 Lumen is 1,000× the base bet and overshoots
+target. `lumen_pay` rounds to 0.1× the base bet
+(`round(amount * cost, 1) / cost`), not 0.1 of cost units.
+
+### ETL sum: every paying buy row catches Lumen
+
+Dashboard **Expected Tail Liability (Sum)** is etl40 + etl10k. A win that is
+both ≥40× cost and ≥10,000× the base bet is counted twice. Guaranteed catch
+puts the chip boost on every paying row, not only the full card.
+
+`settled_stats(..., cost=)` cuts etl10k at `10000/cost`, and `check_gates`
+fails `etl_sum > 1.45`. When it fires, `solve_table` shrinks the advertised
+top — first to just under the 10k/Lumen line — and refills. Do not clamp.
+
+Shipped 2026-08-31 `high_pick_4_buy100` (base-bet row): `[0, 0, 0, 0.9,
+40.2]`. Lumen-only top 4,020×; Pulse-on-top 8,040×. etl_sum **0.798**. RTP
+0.9652. `high_pick_4_buy10`: same advertised row; Lumen 402×; Pulse 804×.
+
+> ⚠️ `_fill_from`'s water-fill used to `hi *= 2` until tail RTP reached the
+> leftover budget. After an etl shrink the tail can be capped below that
+> budget, so the loop never returned. It now fills to cap and leaves the
+> residual for the grid / RTP gate.
 
 > ⚠️ Until 2026-08-28 these were 80 uncertified LUTs shipping to players:
 > `paytables.json` had no `buy10`/`buy100` key, nothing here generated them, and

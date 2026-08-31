@@ -11,6 +11,7 @@ def keno_start_event(
     lumen_boost: float,
     lumen_marked: bool,
     pulse_boost: float,
+    lumen_placed: bool = False,
 ) -> None:
     gamestate.book.add_event(
         {
@@ -24,6 +25,7 @@ def keno_start_event(
             "lumenMarked": bool(lumen_marked),
             "lumenBoost": lumen_boost,
             "pulseBoost": pulse_boost,
+            "lumenPlaced": bool(lumen_placed),
         }
     )
 
