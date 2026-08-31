@@ -4,7 +4,7 @@ tags: [meta]
 updated: 2026-08-28
 source_count: 3
 page_count: 12
-last_change: 2026-08-28 export `pulseRolled`; client path resolved at run time; stale Pulse / pick_1 / `disabledBuyFeature` claims corrected.
+last_change: 2026-08-30 Pulse gated to extra-open books (Earn re-solve to the same 0.9650; buy/off math unchanged); batching_size fix for odd book counts.
 ---
 
 # Math SDK Wiki

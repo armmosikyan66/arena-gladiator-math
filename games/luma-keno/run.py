@@ -98,7 +98,13 @@ def print_mode_rtp_table(gamestate: GameState) -> None:
 
 if __name__ == "__main__":
     num_threads = 1
-    batching_size = 50
+    # Must be >= the largest book count. run_multi_process_sims floors
+    # `sims_per_thread = int(n / repeats)`, so any mode whose book count is
+    # under the batch size runs as one repeat (lossless), while a count that
+    # straddles it — 99 books against a batch of 50 — splits into 2 repeats of
+    # 49 and silently drops a book. Extra-open Pulse gating made several Earn
+    # counts odd (81/89/99), which is what surfaced this. All counts are <= 112.
+    batching_size = 1000
     compression = True
     profiling = False
 

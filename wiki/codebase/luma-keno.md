@@ -1,7 +1,7 @@
 ---
 type: codebase
 tags: [keno, luma-keno, rtp, publish, telemetry]
-updated: 2026-08-28
+updated: 2026-08-30
 ---
 
 # Luma Keno math
@@ -47,9 +47,11 @@ on both buy chips. Lumen does **not** rescue a 0× row.
 Earn extras: 0 or 2 from the remaining 30 (`lumen` / `nearMiss` / luck).
 Extra hits pay the Earn table, then Lumen multiplies that base.
 
-Earn Pulse: **10%** of rounds roll Pulse and apply it after Lumen, only
-on a paying table. Independent of extras. Boost is ×2 on
-classic/low/high and **×3 on medium**.
+Earn Pulse: a **charge on an extra light**, so it rolls on **10% of the
+books whose extras open** and never when they stay closed. Boost ×2 on
+classic/low/high and **×3 on medium**, applied after Lumen and only on a
+paying table. Buy chips always open extras, so their roll rate stays a flat
+10% of rounds.
 
 > ⚠️ This page said "×2" uniformly until 2026-08-28. `f506383 fix pulse
 > multipliers` (2026-08-26) turned `PULSE_BOOST` from the scalar `2.0`
@@ -57,11 +59,23 @@ classic/low/high and **×3 on medium**.
 > logged. Treat `keno_pick_one.py` as the source of truth.
 
 Rolling Pulse and being paid for it are different events. `pulse_pay`
-refuses to rescue a 0× row, so on `high_pick_10_earn` Pulse rolls on
-10.0% of rounds and pays on 0.51% — the other 9.49% is a roll the player
-never sees. `export_luts.py` now emits **`pulseRolled`** alongside
-`pulse` (the boost actually applied) so the client and telemetry can
-tell the two apart.
+refuses to rescue a 0× row, so a rolled Pulse on a dead table is a roll the
+player never cashes. `export_luts.py` emits **`pulseRolled`** alongside
+`pulse` (the boost actually applied) so the client and telemetry can tell the
+two apart.
+
+> ⚠️ Until 2026-08-30 Pulse was an **independent** 10% round roll — it split
+> closed-extras books too, which the client never had a face for (the rings
+> mount on an extra light) and the `keno-math` skill had always forbidden.
+> Gating it to extra-open books kept every (hits, lumen, extras, extraHits)
+> marginal identical and changed only the Earn coefficient, so the Earn
+> ladders were re-solved to the same 0.9650 target. Buy math is bit-identical
+> (their extras never close); Off never had Pulse. One engine trap surfaced:
+> `run_multi_process_sims` floors `sims_per_thread = int(n / repeats)`, so a
+> 99-book mode against `batching_size = 50` split into 2 repeats of 49 and
+> silently dropped a book — every Earn count used to be even (all books were
+> pulse-split), so odd counts never occurred before. `run.py` now uses a batch
+> of 1000 (any batch ≥ the largest count forces one lossless repeat).
 
 ## Buy chips
 
@@ -224,7 +238,7 @@ See [[domain/stake-engine-publish]] and [[sources/keno-xtreme-analysis]].
 | `keno_pick_one.py` | Off + Earn + buy pick_1 lattices; lumen/extra criteria; `lumen_pay` |
 | `solve_paytables.py` | `solve_off` / `solve_earn` / `solve_buy`; cap ladder incl. `MAX_PAYOUT_ABS` and `TOP_OVERRIDE`; `check_gates` |
 | `paytables.json` | `risks` (Off) + `earn` + `buy10` + `buy100` + `solved` (which sections this solve owns) |
-| `run.py` / `export_luts.py` | 160-mode books; Off hypergeometric; Earn/buy lumen×extra weights; `pulseRolled`; writes the client's `src/data/keno-books.json` |
+| `run.py` / `export_luts.py` | 160-mode books; Off hypergeometric; Earn/buy lumen×extra weights; extra-gated `pulseRolled`; writes the client's `src/data/keno-books.json` |
 | `utils/rgs_verification.py` | vendored; local gate mirror. `max_win` added to `mode_limits` 2026-08-28 |
 
 `export_luts.py` resolves the client path at run time: monorepo `web/`

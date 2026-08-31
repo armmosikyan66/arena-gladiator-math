@@ -2,6 +2,35 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-08-30] fix | Pulse gated to extra-open books (client-math contract)
+
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno/keno_pick_one.py, run.py, paytables.json, export_luts.py,
+  wiki/codebase/luma-keno.md, wiki/index.md, web/src/data/keno-books.json,
+  web/src/data/keno-paytables.json, web/src/lib/keno/round.ts, copy.ts,
+  web/scripts/verify-front-math.mjs (deleted backfill-pulse-rolled.mjs)
+- notes: Pulse was an independent 10% round roll (`for pulse in (False, True)`
+  over every Earn book, `pulse_part` multiplied into closed-extras weights too).
+  The client only ever had a face for it on an extra light — the rings mount on
+  one of the two extras — and the keno-math skill had specified "Pulse on 10%
+  of extra-open Earn books; closed extras never book Pulse" all along. The code
+  had diverged from its own spec.
+  Fix gates the pulse split to `spin.extras`; closed books carry the full
+  CHANCE_DENOM. Marginals over (hits, lumenHit, extras, extraReason, extraHits)
+  are unchanged, so hit/LDW/extras/Lumen rates are identical and only the Earn
+  coefficient moved — Earn ladders re-solved to the same 0.9650 target (0.9630–
+  0.9664 shipped, spread 0.34pp against the 0.50pp gate). Buy math is
+  bit-identical (extras never close); Off untouched. Verified: rgs_verification
+  clean, verify-front-math 160/160 (check 6 now expects `10% × P(extras open)`
+  and asserts no closed-extras book rolls).
+  Engine trap found on the way: `run_multi_process_sims` floors
+  `sims_per_thread = int(n / num_repeats)` with `num_repeats = round(n / batch)`.
+  With `batching_size = 50`, a 99-book mode ran 2 repeats × 49 = 98 sims and
+  silently dropped a book. Never seen before because every Earn count was even
+  (all books were pulse-split); the gating made 19 Earn counts odd (11/17/29/37/
+  55/63/81/89/99). run.py now sets batching_size = 1000 (≥ largest count ⇒ one
+  lossless repeat). export_luts' book-count assertion is what caught it.
+
 ## [2026-08-28] fix | high_pick_6 rated Extreme; cap its top row (`TOP_OVERRIDE`)
 
 - summary: wiki/domain/stake-rating-limits.md

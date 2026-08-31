@@ -134,7 +134,9 @@ EXTRA_CHANCE_PCT = {
     "medium": 7,
     "high": 4,
 }
-# Earn-only: one round Pulse, independent of extras. Off never rolls it.
+# Earn-only: Pulse rides the extra lights. It rolls on 10% of rounds whose
+# extras OPEN and never when they stay closed — the roll is a charge on one of
+# the two extra lights, not an independent round roll. Off never rolls it.
 # Classic/low/high ×2; medium ×3. Same 10% chance on every risk.
 PULSE_BOOST = {
     "classic": 2.0,
@@ -461,7 +463,10 @@ def spin_outcomes(
             for extras, reason, extra_hits in extra_outcomes(
                 k, main_hits, lumen_hit, paying, bought
             ):
-                for pulse in (False, True):
+                # Pulse is a charge on an extra light, so only extra-open books
+                # split on it. A closed-extras round has no face to mount the
+                # boost on and books exactly one outcome.
+                for pulse in ((False, True) if extras else (False,)):
                     out.append(
                         SpinCriteria(main_hits, lumen_hit, extras, reason, extra_hits, pulse)
                     )
@@ -506,7 +511,14 @@ def spin_weight(
     pair_total = comb(rest, EXTRA_N)
     pair = extra_pair_weight(k, spin.main_hits, spin.extra_hits)
     chance = EXTRA_CHANCE_PCT[risk]
-    pulse_part = PULSE_CHANCE_PCT if spin.pulse else (CHANCE_DENOM - PULSE_CHANCE_PCT)
+    # The 10/90 Pulse split only exists on extra-open books; a closed-extras
+    # round carries the full denominator because it never rolls.
+    if spin.extras:
+        pulse_part = (
+            PULSE_CHANCE_PCT if spin.pulse else (CHANCE_DENOM - PULSE_CHANCE_PCT)
+        )
+    else:
+        pulse_part = CHANCE_DENOM
     forced = extras_forced_reason(k, spin.main_hits, spin.lumen_hit, paying, bought)
     # Bought extras are certain, so they carry the whole CHANCE_DENOM rather
     # than a luck slice. Summed over extra_hits and pulse this still lands on
@@ -578,8 +590,9 @@ def effective_coeff(
     """RTP = sum_h coeff[h] * advertised[h] when advertised[h] > 0 iff h in paying.
 
     Lumen and Pulse are priced in: a paying row that is caught contributes
-    boost * P; Pulse (×2, or ×3 on medium) on 10% of Earn books. Extras
-    from Lumen only open when main_hits is in `paying`.
+    boost * P; Pulse (×2, or ×3 on medium) on 10% of the books whose extras
+    open — it is a charge on an extra light, so closed-extras rounds never
+    roll it. Extras from Lumen only open when main_hits is in `paying`.
 
     `bought` forces the extras open, which is the buy chips' whole product. It
     shifts weight into the higher total-hit buckets rather than adding a
@@ -780,7 +793,9 @@ assert all(
 assert not any(s.miss_bonus for k in range(2, 11) for s in off_outcomes(k))
 assert parse_spin_criteria("hits_0_bonus_1").miss_bonus
 assert not parse_spin_criteria("hits_0").miss_bonus
-assert book_count_for_picks(1) == 6
+# pick_1: 4 books, not 6. A closed-extras round books one outcome (no Pulse
+# split), so each closed branch is 1 book and each open branch is 2.
+assert book_count_for_picks(1) == 4
 CLASSIC_8_PAYING = frozenset({3, 4, 5, 6, 7, 8})
 assert extras_forced_reason(8, 2, True, CLASSIC_8_PAYING) is None
 assert extra_outcomes(8, 2, True, CLASSIC_8_PAYING) == [(False, "none", 0)]
@@ -804,6 +819,21 @@ assert lumen_boost_applied(0.0, True, "high") == 1.0
 assert lumen_boost_applied(2.6, True, "medium") == 2.0
 assert pulse_boost_applied(5.2, True, "classic") == 2.0
 assert pulse_boost_applied(5.2, True, "medium") == 3.0
+# Pulse only exists on extra-open books: no closed-extras book carries it, and
+# within the open set it holds exactly its 10%.
+assert not any(
+    s.pulse for k in range(1, 11) for s in spin_outcomes(k) if not s.extras
+)
+assert all(
+    abs(
+        sum(spin_weight(k, s, r) for s in spin_outcomes(k) if s.pulse)
+        / sum(spin_weight(k, s, r) for s in spin_outcomes(k) if s.extras)
+        - PULSE_CHANCE_PCT / CHANCE_DENOM
+    )
+    < 1e-12
+    for k in (1, 5, 10)
+    for r in ("classic", "medium")
+)
 assert sum(spin_weight(1, spin, "classic") for spin in spin_outcomes(1)) == comb(40, 1) * DRAWN * weight_scale()
 assert sum(spin_weight(5, spin, "classic") for spin in spin_outcomes(5)) == comb(40, 5) * DRAWN * weight_scale()
 assert sum(
