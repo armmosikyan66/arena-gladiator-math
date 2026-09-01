@@ -7,7 +7,8 @@ updated: 2026-09-01
 # Luma Keno math
 
 Hit-count keno in `math/games/luma-keno/`. `win_type = "other"`. Skill
-`keno-math`. Not a slot and not Tower.
+`keno-math`. Not a slot and not Tower. How Off multipliers are generated:
+[[concepts/keno-paytable-generation]].
 
 ## Contract
 
@@ -326,27 +327,29 @@ pick_8–10 advertise ~100× so Lumen×2 × Pulse×2 settles 400×).
 ## Classic HUD vs Off `classic`
 
 Keno Xtreme **Classic** (docx: Normal) is [[sources/keno-xtreme-classic-hud]]
-/ [[domain/keno-xtreme-classic]]. Off `classic` copies **maxes**, then raises
-body cells to the 0.964 fleet — this HUD is **42.2–90.6% RTP** on picks 2–10
-(pick 1 is even money `0.50/2.50`). Tops: **2.50 / 5.00 / 40 / 100 / 300 /
-500 / 600 / 750 / 900 / 1000**. Pick 2 max is **5.00×**, not 5.3×.
+/ [[domain/keno-xtreme-classic]]. Off `classic` copies **zeros + maxes**, then
+fills the body with a max-anchored geometric ladder onto 0.9650
+(`easy_off_classic.py`). HUD is **42.2–90.6% RTP** on picks 2–10 so leftover
+must rise. Tops: **2.6 / 5.4 / 17.5 / 30 / 75 / 200 / 600 / 750 / 900 / 1000**
+(pick_1 two-outcome lattice 0.4/2.6 at RTP 0.950, no miss-bonus third tier;
+pick 2 HUD 5.00 has no in-window lattice point).
+
+Shipped Off `classic` (2026-09-01 geometric):
 
 | k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **1** | 0.50 | 2.50 | | | | | | | | | |
-| **2** | 0.00 | 1.50 | 5.00 | | | | | | | | |
-| **3** | 0.00 | 0.00 | 2.50 | 40.00 | | | | | | |
-| **4** | 0.00 | 0.00 | 1.50 | 9.00 | 100.0 | | | | | |
-| **5** | 0.00 | 0.00 | 1.10 | 4.00 | 10.00 | 300.0 | | | | |
-| **6** | 0.00 | 0.00 | 0.00 | 2.00 | 9.00 | 100.0 | 500.0 | | | |
-| **7** | 0.00 | 0.00 | 0.00 | 1.10 | 3.00 | 9.00 | 100.0 | 600.0 | | |
-| **8** | 0.00 | 0.00 | 0.00 | 1.50 | 3.00 | 9.00 | 40.00 | 200.0 | 750.0 | |
-| **9** | 0.00 | 0.00 | 0.00 | 1.10 | 1.50 | 3.00 | 5.00 | 50.00 | 400.0 | 900.0 |
-| **10** | 0.00 | 0.00 | 0.00 | 1.10 | 1.50 | 2.00 | 4.00 | 10.00 | 50.00 | 500.0 | 1000 |
+| **1** | 0.40 | 2.60 | | | | | | | | | |
+| **2** | 0.00 | 1.70 | 5.40 | | | | | | | | |
+| **3** | 0.00 | 0.00 | 3.50 | 40.00 | | | | | | |
+| **4** | 0.00 | 0.00 | 1.30 | 11.60 | 100.0 | | | | | |
+| **5** | 0.00 | 0.00 | 0.50 | 4.50 | 37.00 | 300.0 | | | | |
+| **6** | 0.00 | 0.00 | 0.00 | 2.90 | 16.40 | 91.00 | 500.0 | | | |
+| **7** | 0.00 | 0.00 | 0.00 | 1.90 | 8.20 | 34.40 | 144.2 | 600.0 | | |
+| **8** | 0.00 | 0.00 | 0.00 | 1.30 | 4.90 | 17.10 | 60.10 | 212.0 | 750.0 | |
+| **9** | 0.00 | 0.00 | 0.00 | 1.00 | 3.20 | 9.50 | 30.50 | 92.70 | 290.1 | 900.0 |
+| **10** | 0.00 | 0.00 | 0.00 | 0.80 | 2.20 | 6.30 | 16.70 | 47.70 | 129.3 | 360.7 | 1000 |
 
-> ⚠️ Contradicts [[sources/keno-xtreme-classic-hud]]: shipped
-> `paytables.json["risks"]["classic"]` is still the solver table (pick_2 max
-> **11.4×**, pick_10 max **800×**). Off `classic` does not yet copy this HUD.
+Earn `classic` and the buy chips keep their own ladders.
 
 ## Medium HUD vs Off `medium`
 

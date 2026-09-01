@@ -61,7 +61,7 @@ def write_exact_lookup_tables(gamestate: GameState) -> None:
                         placed=lumen_placed_on_pick(buy, k),
                     )
                 else:
-                    weight = off_weight(k, spin)
+                    weight = off_weight(k, spin, risk)
                 rows.append(f"{sim_id},{weight},{payouts[sim_id]}\n")
 
         text = "".join(rows)
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     num_sim_args = {}
     for risk in ("classic", "low", "medium", "high"):
         for k in range(1, 11):
-            num_sim_args[f"{risk}_pick_{k}"] = len(off_outcomes(k))
+            num_sim_args[f"{risk}_pick_{k}"] = len(off_outcomes(k, risk))
             paying = paying_from_table(config.keno_earn_paytable[risk][k])
             num_sim_args[f"{risk}_pick_{k}_earn"] = book_count_for_picks(k, paying=paying)
             for buy in BUY_SUFFIXES:

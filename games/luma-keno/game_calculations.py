@@ -86,8 +86,8 @@ class GameCalculations(Executables):
         if not earn:
             total = comb(self.config.keno_pool, k)
             return sum(
-                off_weight(k, spin) * self.off_pay_for(risk, k, spin)
-                for spin in off_outcomes(k)
+                off_weight(k, spin, risk) * self.off_pay_for(risk, k, spin)
+                for spin in off_outcomes(k, risk)
             ) / total
         bought = buy is not None
         placed = lumen_placed_on_pick(buy, k)

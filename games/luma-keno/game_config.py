@@ -95,7 +95,7 @@ class GameConfig(Config):
         self.opt_params = {}
 
     def _off_mode(self, risk: str, k: int) -> BetMode:
-        outcomes = off_outcomes(k)
+        outcomes = off_outcomes(k, risk)
         n = len(outcomes)
         return BetMode(
             name=mode_name(risk, k, False),

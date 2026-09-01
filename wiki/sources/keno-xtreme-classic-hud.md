@@ -223,20 +223,15 @@ Pick 7 is the thin row (42.2%). Do not paste this HUD and expect Cross-Mode.
 
 ## luma-keno mapping
 
-Skill `keno-math` **Classic (Normal analogue)**: Off `classic` copies **maxes**,
-then fills body cells to 0.964.
+Skill `keno-math` **Classic (Normal analogue)**: Off `classic` copies **zeros
++ maxes**, then fills the body with a max-anchored geometric ladder onto
+0.9650 (`easy_off_classic.py`). Pick 2 HUD **1.50 / 5.00** snaps to **1.7 /
+5.4** (5.00 has no in-window lattice point). Pick 10 HUD **1.10 / 1.50 /
+2.00 / 4.00 / 10 / 50 / 500 / 1000** becomes **0.8 / 2.2 / 6.3 / 16.7 /
+47.7 / 129.3 / 360.7 / 1000** (constant-ratio climb, max stays 1000×).
+Earn classic and buy chips keep their own ladders.
 
-- Pick 2 HUD **1.50 / 5.00**. Skill snap was **1.7 / 5.3** (wrong max). Keep
-  **5.00×** if copying the HUD max; do not invent 5.3×.
-- Pick 10 HUD **1.10 / 1.50 / 2.00 / 4.00 / 10 / 50 / 500 / 1000**. Skill snap
-  **1.8 / 2.1 / 2.5 / 3.5 / 10 / 50 / 500 / 1000** (body raised, max stays).
-- Earn classic still advertises 250× on pick_9/10 so Lumen×2 × Pulse×2 can
-  settle 1000×.
-
-> ⚠️ Contradicts [[codebase/luma-keno]] shipped Off `classic`:
-> `paytables.json["risks"]["classic"]` is a solver table (pick_2 max **11.4×**,
-> pick_10 max **800×**, not 5 / 1000). Treat this page as the competitor
-> source; treat `paytables.json` as the published machine.
+Shipped 2026-09-01: `paytables.json["risks"]["classic"]` **is** this chart.
 
 ## Related
 

@@ -3,8 +3,8 @@ type: index
 tags: [meta]
 updated: 2026-09-01
 source_count: 7
-page_count: 20
-last_change: 2026-09-01 Off low = snapped Keno Xtreme Easy copy (easy_off_low.py).
+page_count: 21
+last_change: 2026-09-01 keno paytable generation algorithm (concepts/keno-paytable-generation).
 ---
 
 # Math SDK Wiki
@@ -58,6 +58,7 @@ _Vendor and external docs, summarized — not copied._
 
 - [[concepts/wiki-maintenance-workflow]] — Ingest, query, lint, logging.
 - [[concepts/tower-math-from-ratings]] — Build order: probabilities → RTP budget → row table → MC.
+- [[concepts/keno-paytable-generation]] — How Off multipliers are solved: RTP identity, 0.1× lattice, classic geometric ladder, low leftover-share, pick_1 two-outcome lattice.
 
 ## Analyses
 

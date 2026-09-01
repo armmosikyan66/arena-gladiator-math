@@ -77,7 +77,7 @@ def export_mode(
             else:
                 base = off_pay(spin, paytable)
                 expected = int(round(base * 100))
-                expect_weight = off_weight(k, spin)
+                expect_weight = off_weight(k, spin, risk)
                 after_lumen = 1.0
             assert payout_int == expected, (
                 f"{mode}: LUT payout {payout_int} != settle {expected} "
@@ -119,7 +119,7 @@ def export_mode(
     expect_n = (
         book_count_for_picks(k, DRAWN, paying_from_table(paytable), bought, placed)
         if earn
-        else len(off_outcomes(k))
+        else len(off_outcomes(k, risk))
     )
     assert len(rows) == expect_n, f"{mode}: expected {expect_n} books, found {len(rows)}"
 

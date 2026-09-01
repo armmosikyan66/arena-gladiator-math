@@ -8,26 +8,17 @@ Catching Lumen multiplies a paying hit, so the lattice is
 Dashboard Cross-Mode RTP is 0.50pp, so picks 2-10 share the same
 target after extras and Lumen are priced in.
 
-**Off pick_1 has three payout tiers, not two.** With two tiers the reachable
-RTPs are `0.75*m + 0.25*h`; both legs are multiples of 0.1 (the RGS requires
-`payout % 10 == 0` on 1000-unit bets — see `utils/rgs_verification.py`), so the
-lattice is `0.025*(3j + i)` and only multiples of **0.025** exist. 0.950 is one
-(0.025 x 38); 0.965 is not, and the next one up is 0.975, over the 0.967
-ceiling. A finer advertised grid is not available — 0.01x payouts are illegal,
-which is what an earlier revision of this note got wrong.
+**Off pick_1 is two advertised outcomes — one miss, one hit.** Splitting
+miss weight to fake 0.965 is illegal (skill hard rule; a leftover 24+6
+split paid two different miss amounts for the same hit count). With two
+tiers the reachable RTPs are `0.75*m + 0.25*h`; both legs are multiples of
+0.1 (RGS `payout % 10 == 0`), so the lattice is `0.025*(3j + i)`. 0.950 is
+on it; 0.965 is not; the next point up is 0.975, over the 0.967 ceiling.
 
-The third tier is the way out. Splitting the 30 miss books into 24 at `miss`
-and 6 at `miss + 0.1` adds exactly `6 * 0.1 / 40 = 0.015` and lands all four
-risks on 0.9650 with every payout still on the 0.1x grid. Both miss amounts are
-advertised (see `pick_one_tiers`); the alternative of quietly paying 6 books
-above the published number was rejected twice before — 2026-08-25 in
-`wiki/log.md` — and is worse now that the client ships an honest-presentation
-preset.
-
-The other two ways out were considered and are worse: dropping Off pick_1
-removes four bet modes and forces `MIN_PICKS=2` whenever Earn is off, and
-holding the mode at 0.950 opens a 1.5pp cross-mode spread against the 0.50pp
-dashboard gate.
+`low` and `classic` therefore ship on the two-outcome ceiling **0.950**
+(`low` [0.5, 2.3], `classic` [0.4, 2.6]) and are exempt from the 0.50pp
+Cross-Mode spread. medium/high keep a third miss-bonus tier so those two
+Off pick_1 modes can still land on 0.9650.
 """
 
 from __future__ import annotations
@@ -122,7 +113,14 @@ HIT_WEIGHT = 10
 # PICK_ONE_BONUS`. The base pair sits on the 0.950 lattice and the split adds
 # the remaining 1.5pp; see the module docstring for why a two-tier pick_1
 # cannot reach 0.9650 at all.
+#
+# Risk-scoped: `low` and `classic` are bonus-free (one multiplier per hit).
+# Their two-tier lattice ceiling is 0.950, so those Off pick_1 modes settle
+# there and are exempt from the Cross-Mode 0.50pp fleet check. medium/high
+# keep the +0.1 miss-bonus tier and stay on 0.9650.
 PICK_ONE_BONUS = 0.1
+#: Risks whose Off pick_1 keeps the miss-bonus third tier.
+PICK_ONE_BONUS_RISKS = frozenset({"medium", "high"})
 PICK_ONE_BONUS_WEIGHT = round(
     (RTP_TARGET - PICK_ONE_BASE_RTP) * (MISS_WEIGHT + HIT_WEIGHT) / PICK_ONE_BONUS
 )
@@ -272,19 +270,22 @@ def mode_name(risk: str, k: int, earn: bool = False, buy: str | None = None) -> 
     return f"{base}_earn" if earn else base
 
 
-def off_outcomes(k: int) -> list[SpinCriteria]:
-    """Off books for `k` picks: one per hit count, plus the pick_1 bonus miss."""
+def off_outcomes(k: int, risk: str | None = None) -> list[SpinCriteria]:
+    """Off books for `k` picks: one per hit count, plus the pick_1 bonus miss
+    on risks that carry it (see PICK_ONE_BONUS_RISKS)."""
     out = [SpinCriteria(h, False, False, "none", 0) for h in range(k + 1)]
-    if k == 1:
+    if k == 1 and (risk is None or risk in PICK_ONE_BONUS_RISKS):
         out.insert(1, SpinCriteria(0, False, False, "none", 0, False, True))
     return out
 
 
-def off_weight(k: int, spin: SpinCriteria) -> int:
-    """LUT weight for an Off book. pick_1's miss weight splits across two tiers;
-    every other mode is a plain hypergeometric count."""
+def off_weight(k: int, spin: SpinCriteria, risk: str | None = None) -> int:
+    """LUT weight for an Off book. pick_1's miss weight splits across two tiers
+    on bonus risks; every other mode is a plain hypergeometric count."""
     weight = base_hit_weight(k, spin.main_hits)
     if k != 1 or spin.main_hits != 0:
+        return weight
+    if risk is not None and risk not in PICK_ONE_BONUS_RISKS:
         return weight
     return PICK_ONE_BONUS_WEIGHT if spin.miss_bonus else weight - PICK_ONE_BONUS_WEIGHT
 
@@ -331,6 +332,11 @@ def pick_one_row(risk: str) -> list[float]:
     return [miss, pick_one_hit(miss)]
 
 
+def has_pick_one_bonus(risk: str) -> bool:
+    """Whether this risk's Off pick_1 carries the miss-bonus tier."""
+    return risk in PICK_ONE_BONUS_RISKS
+
+
 def pick_one_bonus_miss(risk: str) -> float:
     """The upgraded miss. Advertised alongside the plain one."""
     return round(PICK_ONE_MISS[risk] + PICK_ONE_BONUS, 1)
@@ -339,6 +345,8 @@ def pick_one_bonus_miss(risk: str) -> float:
 def pick_one_tiers(risk: str) -> list[tuple[int, float]]:
     """(weight, pay) over all 40 Off pick_1 books, in payout order."""
     miss, hit = pick_one_row(risk)
+    if not has_pick_one_bonus(risk):
+        return [(MISS_WEIGHT, miss), (HIT_WEIGHT, hit)]
     return [
         (MISS_WEIGHT - PICK_ONE_BONUS_WEIGHT, miss),
         (PICK_ONE_BONUS_WEIGHT, pick_one_bonus_miss(risk)),
@@ -822,16 +830,21 @@ def base_coeff(k: int) -> tuple[float, ...]:
     return tuple(base_hit_weight(k, h) / total for h in range(k + 1))
 
 
-def base_stats(k: int, table: list[float]) -> dict:
+def base_stats(k: int, table: list[float], risk: str | None = None) -> dict:
     """`settled_stats` over Off books: k+1 hit buckets, no bonus channels.
 
     Deliberately returns the same keys so `check_gates` can grade Off and Earn
-    through one code path.
+    through one code path. `risk` scopes pick_1's miss-bonus tier.
     """
     total = comb(POOL, k)
     # Driven by off_outcomes rather than a range over hit counts so pick_1's
     # bonus miss tier is graded by the same code path as every other mode.
-    pairs = [(off_weight(k, spin), off_pay(spin, table)) for spin in off_outcomes(k)]
+    # `risk` decides whether that tier exists (PICK_ONE_BONUS_RISKS).
+    if risk is not None and k == 1:
+        spins = off_outcomes(k, risk)
+        pairs = [(off_weight(k, spin, risk), off_pay(spin, table)) for spin in spins]
+    else:
+        pairs = [(off_weight(k, spin), off_pay(spin, table)) for spin in off_outcomes(k)]
     pairs = [(w, m) for w, m in pairs if w > 0]
     rtp = sum(w * m for w, m in pairs) / total
     var = sum(w * (m - rtp) ** 2 for w, m in pairs) / total
@@ -922,19 +935,32 @@ assert all(
     abs(0.75 * miss + 0.25 * pick_one_hit(miss) - PICK_ONE_BASE_RTP) < 1e-9
     for miss in PICK_ONE_MISS.values()
 ), "Off pick_1 advertised pair left its 0.025 lattice"
+# Bonus risks close the 0.950 -> 0.9650 gap exactly; low/classic ship
+# bonus-free and settle on the two-tier lattice ceiling instead.
 assert all(
-    abs(pick_one_rtp(risk) - RTP_TARGET) < 1e-9 for risk in PICK_ONE_MISS
+    abs(pick_one_rtp(risk) - RTP_TARGET) < 1e-9
+    for risk in PICK_ONE_MISS
+    if has_pick_one_bonus(risk)
 ), "Off pick_1 bonus tier did not close the gap to target"
+assert all(
+    abs(pick_one_rtp(risk) - PICK_ONE_BASE_RTP) < 1e-9
+    for risk in PICK_ONE_MISS
+    if not has_pick_one_bonus(risk)
+), "bonus-free Off pick_1 left its two-outcome lattice"
 # base_stats grades Off through off_outcomes, so it must already see the third
 # tier — this is what check_gates reads.
 assert all(
-    abs(base_stats(1, pick_one_row(risk))["rtp"] - RTP_TARGET) < 1e-9
+    abs(base_stats(1, pick_one_row(risk), risk)["rtp"] - RTP_TARGET) < 1e-9
     for risk in PICK_ONE_MISS
+    if has_pick_one_bonus(risk)
 ), "base_stats missed Off pick_1's bonus tier"
 # The bonus tier must not leak into any other mode, and pick_1's three books
 # must still add up to the full C(40,1) sample space.
-assert [s.miss_bonus for s in off_outcomes(1)] == [False, True, False]
-assert sum(off_weight(1, s) for s in off_outcomes(1)) == comb(POOL, 1)
+assert [s.miss_bonus for s in off_outcomes(1, "classic")] == [False, False]
+assert [s.miss_bonus for s in off_outcomes(1, "low")] == [False, False]
+assert [s.miss_bonus for s in off_outcomes(1, "medium")] == [False, True, False]
+assert sum(off_weight(1, s, "classic") for s in off_outcomes(1, "classic")) == comb(POOL, 1)
+assert sum(off_weight(1, s, "low") for s in off_outcomes(1, "low")) == comb(POOL, 1)
 assert all(
     sum(off_weight(k, s) for s in off_outcomes(k)) == comb(POOL, k) for k in range(1, 11)
 )

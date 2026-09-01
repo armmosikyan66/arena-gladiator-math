@@ -10,9 +10,13 @@ Stake Keno Xtreme **Classic** HUD (docx: Normal). Source:
 [[sources/keno-xtreme-classic-hud]] (screenshots 2026-09-01). Board: pool 40,
 draw 10, picks 1–10. Bottom-row `Nx` is **hits**.
 
-luma-keno Off `classic` is the analogue — see [[codebase/luma-keno]]. Do not
-paste these cells into `paytables.json` without raising body RTP to the fleet
-target (this HUD is 42–91% on picks 2–10; pick 1 is 100%).
+luma-keno Off `classic` is the analogue — see [[codebase/luma-keno]]. How
+the shipped multipliers are generated (RTP identity, geometric ladder,
+lattice): [[concepts/keno-paytable-generation]]. The
+competitor HUD below is 42–91% RTP; the shipped chart is a geometric
+leftover-fill onto 0.9650 with the same zeros. Maxes follow the HUD on picks
+2, 7–10; **picks 3–6 were cut 2026-09-01** (perfect-hit tops read too big):
+40/100/300/500 → 17.5/30/75/200 (lattice-legal snaps).
 
 ## All picks
 
@@ -29,12 +33,52 @@ target (this HUD is 42–91% on picks 2–10; pick 1 is 100%).
 | **9** | 0.00 | 0.00 | 0.00 | 1.10 | 1.50 | 3.00 | 5.00 | 50.00 | 400.0 | 900.0 | | **900.0** |
 | **10** | 0.00 | 0.00 | 0.00 | 1.10 | 1.50 | 2.00 | 4.00 | 10.00 | 50.00 | 500.0 | 1000 | **1000** |
 
+Shipped luma-keno Off `classic` (geometric, 2026-09-01) — pick_10 max 1000×:
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | max |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.40 | 2.60 | | | | | | | | | | **2.60** |
+| **2** | 0.00 | 1.70 | 5.40 | | | | | | | | | **5.40** |
+| **3** | 0.00 | 0.00 | 5.50 | 17.50 | | | | | | | | **17.5** |
+| **4** | 0.00 | 0.00 | 2.60 | 8.60 | 30.0 | | | | | | | **30** |
+| **5** | 0.00 | 0.00 | 1.30 | 4.90 | 19.50 | 75.0 | | | | | | **75** |
+| **6** | 0.00 | 0.00 | 0.00 | 3.90 | 14.80 | 54.20 | 200.0 | | | | | **200** |
+| **7** | 0.00 | 0.00 | 0.00 | 1.90 | 8.20 | 34.40 | 144.2 | 600.0 | | | | **600** |
+| **8** | 0.00 | 0.00 | 0.00 | 1.30 | 4.90 | 17.10 | 60.10 | 212.0 | 750.0 | | | **750** |
+| **9** | 0.00 | 0.00 | 0.00 | 1.00 | 3.20 | 9.50 | 30.50 | 92.70 | 290.1 | 900.0 | | **900** |
+| **10** | 0.00 | 0.00 | 0.00 | 0.80 | 2.20 | 6.30 | 16.70 | 47.70 | 129.3 | 360.7 | 1000 | **1000** |
+
+Shipped luma-keno Earn `classic` (pins 3–7 at Off max; 8–10 advertise 1000× so
+Lumen ×2 × Pulse ×2 settles 4000×):
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | max |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.50 | 2.10 | | | | | | | | | | **2.10** |
+| **2** | 0.00 | 1.50 | 4.20 | | | | | | | | | **4.20** |
+| **3** | 0.00 | 0.30 | 2.70 | 17.50 | | | | | | | | **17.5** |
+| **4** | 0.00 | 0.00 | 0.60 | 8.60 | 30.0 | | | | | | | **30** |
+| **5** | 0.00 | 0.00 | 1.00 | 2.20 | 10.10 | 75.0 | | | | | | **75** |
+| **6** | 0.00 | 0.00 | 1.00 | 1.50 | 3.20 | 9.90 | 200.0 | | | | | **200** |
+| **7** | 0.00 | 0.00 | 0.00 | 1.00 | 3.10 | 14.90 | 75.00 | 600.0 | | | | **600** |
+| **8** | 0.00 | 0.00 | 0.00 | 1.00 | 2.00 | 6.20 | 17.60 | 120.0 | 1000 | | | **1000** |
+| **9** | 0.00 | 0.00 | 0.00 | 0.00 | 1.00 | 4.40 | 28.40 | 79.80 | 120.0 | 1000 | | **1000** |
+| **10** | 0.00 | 0.00 | 0.00 | 0.70 | 0.90 | 2.30 | 6.00 | 16.00 | 45.00 | 120.0 | 1000 | **1000** |
+
 ## Pick 1
+
+Competitor HUD:
 
 | Hits | Multiplier |
 | ---: | ---: |
 | 0 | 0.50x |
 | 1 | 2.50x |
+
+Shipped Off `classic` pick_1 is a **fixed two-outcome** card: **0.40× / 2.60×**,
+RTP **0.950** (`0.75×0.4 + 0.25×2.6`). A two-outcome 0.1× lattice cannot reach
+0.965 (next point is 0.975, over the 0.967 cap). Splitting miss weight so
+"1 in 5 misses pays 0.5×" is illegal — one multiplier per hit. The 1.5pp gap
+to the 0.9650 fleet is a designed Cross-Mode exemption, same as Off `low`
+pick_1.
 
 ## Pick 2
 

@@ -2,6 +2,141 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-01] ingest | Keno paytable generation algorithm
+
+- summary: wiki/concepts/keno-paytable-generation.md
+- new: wiki/concepts/keno-paytable-generation.md
+- touched: wiki/index.md, wiki/domain/keno-xtreme-classic.md,
+  wiki/codebase/luma-keno.md
+- notes: Documents the live generators: RTP = Σ P(h)·m[h] at 0.9650
+  (edge 3.50%), 0.1× lattice, classic max-anchored geometric ladder,
+  low leftover-share, pick_1 two-outcome 0.950 lattice, Earn/buy as
+  derived charts. Worked pick-6 row at 200×. How-to republish after a
+  max cut.
+
+## [2026-09-01] change | Off `classic` pick_1 miss-bonus removed (fixed 0.4× / 2.6×)
+
+- summary: wiki/domain/keno-xtreme-classic.md, wiki/codebase/luma-keno.md
+- touched: games/luma-keno/keno_pick_one.py (`PICK_ONE_BONUS_RISKS` now
+  medium/high only), games/luma-keno/solve_paytables.py (check_gates +
+  `--off-classic` pick1Bonus), games/luma-keno/easy_off_classic.py,
+  games/luma-keno/paytables.json, library/ (classic_pick_1 2 books),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/lib/keno/copy.ts, web/scripts/verify-front-math.mjs,
+  wiki/domain/keno-xtreme-classic.md, wiki/codebase/luma-keno.md,
+  .cursor/skills/keno-math/SKILL.md
+- notes: Dropped the "1 in 5 misses pays 0.5×" third tier on classic.
+  Best practice is one multiplier per hit — splitting miss weight to fake
+  0.965 is illegal. Two-outcome 0.1× lattice only reaches 0.950 or 0.975;
+  0.975 busts the 0.967 cap, so classic_pick_1 ships [0.4, 2.6] at 0.950
+  (same exemption as low). HUD note gone. medium/high keep the bonus.
+
+## [2026-09-01] change | Off `classic` picks 3-6 max cut again (26.5/49.5/150/400 → 17.5/30/75/200)
+
+- summary: wiki/domain/keno-xtreme-classic.md
+- touched: games/luma-keno/easy_off_classic.py, games/luma-keno/solve_paytables.py
+  (CLASSIC_EARN_TOP), games/luma-keno/run_classic.py, games/luma-keno/paytables.json,
+  library/ (all classic books/LUTs), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/scripts/verify-front-math.mjs
+  (Earn pick-5 3-hit ratchet 2.0× → 2.2×), wiki/domain/keno-xtreme-classic.md,
+  .cursor/skills/keno-math/SKILL.md
+- notes: Second product cut — 3/3 4/4 5/5 6/6 still read too big.
+  Geometric leftover-fill onto 0.9650 (edge 3.46-3.59%). Pick 3 lattice
+  next-down is 13x but that is only 2.2x the hit-2 cell; 17.5 keeps a
+  real peak (×3.18). Earn/buy re-pinned. buy10 pick 6 JSON 400 → 200.
+
+## [2026-09-01] change | Regenerated full classic matrix (Off + Earn + buy10/buy100)
+
+- summary: wiki/domain/keno-xtreme-classic.md
+- touched: games/luma-keno/solve_paytables.py (CLASSIC_EARN_TOP +
+  `--earn-classic` / `--buy-classic`), games/luma-keno/run_classic.py,
+  games/luma-keno/paytables.json, library/ (all classic books/LUTs),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json, web/scripts/verify-front-math.mjs
+  (Earn pick-5 3-hit ratchet 1.1× → 2.0×), wiki/domain/keno-xtreme-classic.md
+- notes: Re-solved Earn/buy classic against the cut Off maxes. Earn pins
+  3-7 at 26.5/49.5/150/400/600; 8-10 still advertise 1000× (How-to 4000×).
+  buy10 pick 6 JSON 500 → 400 (no longer raises Off). buy100 pick 6-10 stay
+  on the 450 JSON cap. rgs_verification PASS; par-sheet 0 hard failures,
+  spread 0.315pp.
+
+## [2026-09-01] change | Off `classic` picks 3-6 max cut (40/100/300/500 → 26.5/49.5/150/400)
+
+- summary: wiki/domain/keno-xtreme-classic.md
+- touched: games/luma-keno/easy_off_classic.py (MAX_LADDER + CLASSIC_OFF),
+  games/luma-keno/solve_paytables.py (`--off-classic`),
+  games/luma-keno/run_off_classic.py, games/luma-keno/paytables.json,
+  library/ (classic Off books/LUTs), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json,
+  wiki/domain/keno-xtreme-classic.md, .cursor/skills/keno-math/SKILL.md
+- notes: Product cut — perfect-hit multipliers read too big on low picks.
+  New lattice-legal maxes picked from the generator's sweep: pick 3 admits
+  only 17.5/22/26.5/31...; pick 4 skips 50.0 (legal 49.5/50.5); pick 5
+  any 0.5-step; pick 6 any 0.5-step. Rows: 3 = 4.7/26.5, 4 = 2.1/10.2/49.5,
+  5 = 0.9/5/27.3/150, 6 = 3.2/15.9/80.5/400, all rtp 0.9641-0.9654, edge
+  3.47-3.59%. Max ladder still strictly increasing 2.6/5.4/26.5/49.5/150/
+  400/600/750/900/1000. Earn/buy classic untouched (their Off-relative
+  gates are one-directional: tops may not sit BELOW Off, and Off only
+  went down). rgs_verification PASS; verify-front-math 160/160;
+  par-sheet 0 hard failures, spread 0.315pp.
+
+## [2026-09-01] change | Off `classic` geometric ladder, pick_10 max 1000×
+
+- summary: wiki/codebase/luma-keno.md, wiki/domain/keno-xtreme-classic.md
+- touched: games/luma-keno/easy_off_classic.py, games/luma-keno/solve_paytables.py
+  (`--off-classic`), games/luma-keno/run_off_classic.py,
+  games/luma-keno/paytables.json, library/ (classic Off books/LUTs),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json, wiki/codebase/luma-keno.md,
+  wiki/domain/keno-xtreme-classic.md, wiki/sources/keno-xtreme-classic-hud.md,
+  wiki/index.md, .cursor/skills/keno-math/SKILL.md
+- notes: Replaced remainder-pack CLASSIC_OFF with a max-anchored geometric
+  ladder (lock max, keep HUD zeros, solve m_f so every paying cell grows
+  by one constant factor toward the peak, snap 0.1x, deterministic
+  coordinate-descent repair onto 0.9650). Pick 10: 0.8 / 2.2 / 6.3 / 16.7
+  / 47.7 / 129.3 / 360.7 / 1000 (step ×2.65–2.86). Pick 2 max 5.4 (HUD
+  5.00 has no in-window lattice point). Earn/buy classic untouched.
+  verify-front-math OK; par-sheet spread 0.315pp.
+
+## [2026-09-01] change | Off pick_1 miss-bonus risk-scoped; `low` bonus-free
+
+- summary: keno_pick_one.py (`PICK_ONE_BONUS_RISKS`), games/luma-keno
+  (shipped low_pick_1 two-book LUT)
+- touched: games/luma-keno/keno_pick_one.py, games/luma-keno/solve_paytables.py,
+  games/luma-keno/game_config.py, games/luma-keno/game_calculations.py,
+  games/luma-keno/run.py, games/luma-keno/run_off_pick_one.py,
+  games/luma-keno/export_luts.py, games/luma-keno/export_chart.py,
+  games/luma-keno/paytables.json, library/ (all 160 books/LUTs/configs),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json, web/scripts/verify-front-math.mjs,
+  web/scripts/par-sheet.mjs, web/src/lib/keno/paytable.ts (doc only)
+- notes: Product decision — `low` pick_1 ships constant multipliers, no
+  miss-bonus tier. Two-outcome pick_1 lives on the 0.025 lattice
+  (`0.75·miss+0.25·hit`), so the max legal RTP is 0.950: row [0.5, 2.3]
+  (std 0.779 > 0.62 floor; [0.6, 2.0] fails STD 0.606; 0.975 busts the
+  0.967 cap). classic/medium/high keep the 6-book bonus tier and 0.9650.
+  `low_pick_1` is exempt from Cross-Mode spread (same precedent as the
+  pre-third-tier fleet) in check_gates and par-sheet.mjs (rtp >= 0.96
+  pool). Full 160-mode book/LUT regen; verify-front-math OK; par-sheet
+  spread 0.315pp; verify-copy OK. Web paytables copy had drifted stale
+  buy sections (99 diffs) — resynced from math source of truth. Fixed a
+  stale 4.4x pin in verify-front-math (certified 3-hit cell is 1.1, ×2
+  Lumen settles 2.2) and a stale 3-book request in run_off_pick_one.py
+  (weights summed 50/40, hidden RTP 1.22).
+
+## [2026-09-01] change | Off `low` leftover-filled to 96.5% RTP
+
+- summary: wiki/domain/keno-xtreme-easy.md (shipped 0.9650 table)
+- touched: games/luma-keno/easy_off_low.py, games/luma-keno/solve_paytables.py
+  (`--off-low`), games/luma-keno/paytables.json, web/src/data/keno-paytables.json,
+  wiki/domain/keno-xtreme-easy.md, wiki/index.md,
+  .cursor/skills/keno-math/SKILL.md
+- notes: Competitor Easy HUD is ~99% RTP; Stake's page claim is 96.50% /
+  3.50% house edge. Off `low` now leftover-fills HUD leftover-shares onto
+  `RTP_TARGET=0.9650` (lock max, same zeros, 0.1x climb). Picks 6-10 sit on
+  0.9650; picks 2-5 are the closest lattice points (pick 2 1.8/4.7 = 0.9635
+  is the only legal pair). Earn/buy `low` unchanged. Books/LUTs not regenerated.
+
 ## [2026-09-01] change | Off `low` = snapped Keno Xtreme Easy copy (picks 2–10)
 
 - summary: wiki/domain/keno-xtreme-easy.md (shipped table), wiki/sources/keno-xtreme-easy-hud.md

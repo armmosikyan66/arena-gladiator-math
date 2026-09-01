@@ -13,13 +13,11 @@ is **hits**, not pick count.
 luma-keno Off `low` is the Easy analogue — see [[codebase/luma-keno]]. Do not
 paste these cells into `paytables.json` without the 0.1× snap.
 
-**Shipped 2026-09-01:** Off `low` **is** the snapped Easy copy now
-(`math/games/luma-keno/easy_off_low.py`, picked up by
-`solve_paytables.py`). Every illegal cell is floored to 0.1× and 1–3 body
-cells per pick are trimmed so exact RTP lands in 0.9630–0.9655 (fleet
-band; the competitor chart itself is ~99% and cannot ship). Maxes are
-kept except pick 2 (`4.5→4.7`), and rise strictly with the pick count:
-**2.3 / 4.7 / 10.4 / 22.5 / 36 / 40 / 60 / 70 / 85 / 100**.
+**Shipped 2026-09-01:** Off `low` leftover-fills the Easy HUD to **96.5%
+RTP / 3.50% house edge** (`easy_off_low.py`). The competitor chart itself
+is ~99% and cannot ship. Maxes stay except pick 2 (`4.5→4.7`); they rise
+**2.3 / 4.7 / 10.4 / 22.5 / 36 / 40 / 60 / 70 / 85 / 100**. Picks 6–10
+hit 0.9650 exactly; 2–5 are the closest 0.1× lattice points.
 
 | k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | RTP |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -28,11 +26,11 @@ kept except pick 2 (`4.5→4.7`), and rise strictly with the pick count:
 | **3** | 0.00 | 0.60 | 4.20 | 10.40 | | | | | | | | 0.9644 |
 | **4** | 0.00 | 0.80 | 1.70 | 4.90 | 22.50 | | | | | | | 0.9642 |
 | **5** | 0.00 | 0.20 | 1.40 | 4.10 | 16.10 | 36.00 | | | | | | 0.9652 |
-| **6** | 0.00 | 0.00 | 1.00 | 3.60 | 6.40 | 16.50 | 40.00 | | | | | 0.9652 |
-| **7** | 0.00 | 0.00 | 0.40 | 3.00 | 4.40 | 14.40 | 31.00 | 60.00 | | | | 0.9635 |
-| **8** | 0.00 | 0.00 | 0.00 | 2.10 | 4.00 | 12.80 | 22.00 | 55.00 | 70.00 | | | 0.9653 |
-| **9** | 0.00 | 0.00 | 0.00 | 1.50 | 3.00 | 7.50 | 15.00 | 44.00 | 60.00 | 85.00 | | 0.9641 |
-| **10** | 0.00 | 0.00 | 0.00 | 1.40 | 2.10 | 4.40 | 8.00 | 17.00 | 50.00 | 80.00 | 100.0 | 0.9641 |
+| **6** | 0.00 | 0.00 | 1.00 | 3.60 | 6.40 | 16.40 | 40.00 | | | | | 0.9650 |
+| **7** | 0.00 | 0.00 | 0.40 | 3.00 | 4.40 | 14.70 | 30.20 | 60.00 | | | | 0.9650 |
+| **8** | 0.00 | 0.00 | 0.00 | 2.10 | 4.00 | 12.80 | 21.70 | 55.50 | 70.00 | | | 0.9650 |
+| **9** | 0.00 | 0.00 | 0.00 | 1.50 | 2.90 | 8.00 | 14.70 | 44.80 | 60.60 | 85.00 | | 0.9650 |
+| **10** | 0.00 | 0.00 | 0.00 | 1.40 | 2.10 | 4.40 | 8.10 | 17.40 | 50.80 | 81.20 | 100.0 | 0.9650 |
 
 ## All picks
 

@@ -54,9 +54,9 @@ def mode_name(section: str, risk: str, k: int) -> str:
     return f"{risk}_pick_{k}_{section}"
 
 
-def export_off(k: int, paytable: list[float]) -> dict:
+def export_off(k: int, risk: str, paytable: list[float]) -> dict:
     rows = []
-    for i, spin in enumerate(off_outcomes(k)):
+    for i, spin in enumerate(off_outcomes(k, risk)):
         rows.append(
             {
                 "id": i,
@@ -70,7 +70,7 @@ def export_off(k: int, paytable: list[float]) -> dict:
                 "pulse": 1.0,
                 "pulseRolled": False,
                 "missBonus": bool(spin.miss_bonus),
-                "weight": int(off_weight(k, spin)),
+                "weight": int(off_weight(k, spin, risk)),
                 "payout": int(round(off_pay(spin, paytable) * 100)),
             }
         )
@@ -153,7 +153,7 @@ def main(section: str, risk: str, locked: set[int]) -> None:
         k = int(k_s)
         name = mode_name(section, risk, k)
         mode = (
-            export_off(k, row)
+            export_off(k, risk, row)
             if section == "risks"
             else export_settled(k, risk, row, cost, buy)
         )

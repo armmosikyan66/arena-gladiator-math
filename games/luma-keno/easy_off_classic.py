@@ -1,66 +1,45 @@
-"""Off `classic` (Keno Xtreme Classic analogue) paytable — HUD copy.
+"""Off `classic` — max-anchored geometric ladder, pick_10 max 1000x.
 
-Source: /workspace/keno-xtreme-classic-hud.md (screenshots 2026-09-01).
-Competitor Classic HUD RTP is 42–91% (pick 7 is ~0.42), not ~99% like Easy,
-so the copy RAISES body cells onto the designed window [0.9630, 0.9655]
-inside MODE_RTP_BAND. There is no ±1.2 cell-drift cap — that Easy rule
-would make Classic impossible.
+Deterministic algorithm, per pick (Off only, no bonus channels):
 
-Per the copy rule (skill `keno-math`, Classic):
+1. Lock M = designed max (ladder tops at 1000x on pick_10).
+2. Keep the HUD zero prefix (same first paying hit f).
+3. Shape: every paying cell grows by the SAME factor toward the peak:
+       m[h] = m_f * r^(h-f),   r = (M / m_f)^(1/(k-f))
+4. Solve m_f from Σ P(h)·m[h] = 0.9650. Monotone in m_f, so bisection
+   converges to a unique answer (2 paying cells: closed form
+   m_f = (0.9650 - P(k)*M) / P(f)).
+5. Snap to the 0.1x lattice (max kept exact), fix monotonicity.
+6. Deterministic repair: coordinate descent in a fixed order (cells sorted
+   by RTP leverage), ±0.1..0.3 nudges accepted only if they strictly
+   improve |RTP - 0.9650| while keeping the progressive ratio inside a
+   band of the ideal r. Same input → same matrix, every run.
 
-  1. keep the shape — same zero prefix, same first paying hit;
-  2. keep the HUD maxes, except pick 2 (see below);
-  3. 0.1x lattice only;
-  4. remainder-pack RTP onto mid-coeff body cells. Do not flatten the
-     top of a ladder into the max (no 599.9/600 or 899.8/900 cliffs).
-     HUD cells >= 40x (the jackpot ladder) stay put.
+Pick 2 exception: HUD max 5.0 has no in-window lattice point
+(1.7/5.0 = 0.9423, 1.8/5.0 = 0.9808). Snap is 5.4, same exception Easy
+took at 4.5 → 4.7.
 
-Pick 2 exception: on the 0.1x grid, max 5.0 with body 1.7 lands at
-0.9423 and body 1.8 overshoots 0.9655. Same exception Easy used (4.5→4.7).
-Search found [0.0, 1.7, 5.4] rtp=0.965385; no 5.0 on-grid solution exists.
+pick_1 stays on the closed-form two-outcome lattice in keno_pick_one.py
+(classic miss 0.4, hit 2.6, RTP 0.950 — no miss-bonus third tier) and is
+not in CLASSIC_OFF.
 
-Fill: greedy-raise highest-coeff body cells 0.1 at a time while
-exact_rtp + coeff*0.1 <= 0.9655 and next_paying - 0.1 has room. If still
-below 0.9630, pack remainder onto the next HUD body cell (lower coeff),
-making room on a successor only when the HUD pair is already tight
-(k=9/10 1.10/1.50/2.00). Do not raise 40/50/100/200/400/500/600/750/900/1000.
-
-Picks 2-10 maxes strictly increase across picks:
-
-    2.6 (pick_1) < 5.4 < 40 < 100 < 300 < 500 < 600 < 750 < 900 < 1000
-
-Scope: **Off only.** Earn `classic` and the buy chips keep their own
-ladders. pick_1 stays on the closed-form lattice in keno_pick_one.py
-(classic miss 0.4, hit 2.6) and is not in CLASSIC_OFF.
-
-Pick 10 restair
----------------
-Hits 3-5 were 1.9 / 2.0 / 2.1 - three cells the HUD cannot separate. They now
-read 1.6 / 2.3 / 3.1 (rtp 0.965026), which is what shipped in paytables.json.
-This file had been left declaring the old row, so the source of truth and the
-exported chart disagreed; the row above is now the exported one.
-
-The restair spreads those three cells but the row is **not** shape-locked, and
-cannot be while the top stays at 1000x. With 8 paying cells the tightest
-lock-clean ladder (1.25x between consolation cells, 2.5x across the mid ladder,
-8x final catch) tops out at rtp 0.679 - the designed window 0.9630-0.9655 is
-unreachable from below. Holding the window at 1000x requires either fewer
-paying cells or a top around 1418x, both of which are product decisions rather
-than solver settings. See `shape_feasibility.py`.
+Scope: **Off only.** Earn `classic` and the buy chips keep their own ladders.
 """
 
 from __future__ import annotations
 
 from fractions import Fraction
 
-from keno_pick_one import MODE_RTP_BAND, STD_MIN, base_coeff, base_stats
+from keno_pick_one import (
+    MODE_RTP_BAND,
+    STD_MIN,
+    base_coeff,
+    base_stats,
+)
 
-#: Designed RTP window. Inside MODE_RTP_BAND with margin on both sides so
-#: the fleet Cross-Mode spread (0.50pp over all 160 modes) never binds here.
 RTP_WINDOW = (0.9630, 0.9655)
 
-#: Competitor Classic HUD rows, for provenance and shape checks only.
-#: All cells already on the 0.1x lattice.
+#: Competitor Classic HUD rows: zeros/shape template only.
 CLASSIC_HUD = {
     2: [0.00, 1.50, 5.00],
     3: [0.00, 0.00, 2.50, 40.00],
@@ -73,74 +52,234 @@ CLASSIC_HUD = {
     10: [0.00, 0.00, 0.00, 1.10, 1.50, 2.00, 4.00, 10.00, 50.00, 500.0, 1000.0],
 }
 
-#: The shipped Off `classic` chart (picks 2-10). Body cells are remainder-
-#: packed just enough to reach the window; jackpot cells stay on the HUD.
-CLASSIC_OFF: dict[int, list[float]] = {
-    2: [0.0, 1.7, 5.4],
-    3: [0.0, 0.0, 3.5, 40.0],
-    4: [0.0, 0.0, 1.7, 9.4, 100.0],
-    5: [0.0, 0.0, 1.5, 4.2, 10.3, 300.0],
-    6: [0.0, 0.0, 0.0, 4.1, 9.2, 100.0, 500.0],
-    7: [0.0, 0.0, 0.0, 2.9, 7.9, 9.0, 100.0, 600.0],
-    8: [0.0, 0.0, 0.0, 2.5, 3.1, 9.0, 40.0, 200.0, 750.0],
-    9: [0.0, 0.0, 0.0, 2.3, 2.4, 3.0, 5.0, 50.0, 400.0, 900.0],
-    10: [0.0, 0.0, 0.0, 1.6, 2.3, 3.1, 4.0, 10.0, 50.0, 500.0, 1000.0],
+#: Designed max ladder. Strictly increasing, top = 1000x on pick_10.
+#: Perfect-hit tops on picks 3-6 cut twice (HUD 40/100/300/500 was too big):
+#: 26.5/49.5/150/400 -> 17.5/30/75/200. Pick 3 lattice only admits
+#: 8.5/13/17.5/22/26.5...; 17.5 is the last step that still reads as a peak
+#: (13x is only 2.2x the hit-2 cell).
+MAX_LADDER = {
+    2: 5.4,
+    3: 17.5,
+    4: 30.0,
+    5: 75.0,
+    6: 200.0,
+    7: 600.0,
+    8: 750.0,
+    9: 900.0,
+    10: 1000.0,
 }
 
-#: Picks restaired under `shape_lock`. Empty for Classic: see the note below.
-SHAPE_LOCKED: frozenset[int] = frozenset()
+TARGET = Fraction(965, 1000)
+WINDOW = (Fraction(963, 1000), Fraction(9655, 10000))
+EPS = 1e-9
+RATIO_BANDS = (2.5, 4.0, 8.0)
+
+
+def _probs(k: int) -> list[Fraction]:
+    return [Fraction(str(c)) for c in base_coeff(k)]
 
 
 def _exact_rtp(k: int, row: list[float]) -> Fraction:
-    return sum(
-        coeff * Fraction(str(m)) for coeff, m in zip(base_coeff(k), row)
+    return sum(p * Fraction(str(m)) for p, m in zip(_probs(k), row))
+
+
+def _first_paying(hud: list[float]) -> int:
+    return next(h for h, m in enumerate(hud) if m > 0)
+
+
+def _paying(hud: list[float], k: int) -> list[int]:
+    return [h for h in range(k + 1) if hud[h] > 0]
+
+
+def _row_from(f: int, k: int, m_f: float, r: float, mx: float) -> list[float]:
+    row = [0.0] * (k + 1)
+    for i in range(k - f + 1):
+        row[f + i] = m_f * r**i
+    row[k] = mx
+    return row
+
+
+def _seed_geometric(k: int, hud: list[float], mx: float) -> tuple[list[float], float]:
+    """Solve m_f so the constant-ratio ladder from m_f to mx hits 0.9650."""
+    f = _first_paying(hud)
+    steps = k - f
+    probs = [float(p) for p in _probs(k)]
+    target = float(TARGET)
+    if steps == 1:
+        m_f = (target - probs[k] * mx) / probs[f]
+        return _row_from(f, k, m_f, mx / m_f, mx), mx / m_f
+
+    def rtp_of(m_f: float) -> float:
+        r = (mx / m_f) ** (1.0 / steps)
+        row = _row_from(f, k, m_f, r, mx)
+        return sum(probs[h] * row[h] for h in range(k + 1))
+
+    lo, hi = mx * 1e-6, mx * 0.999
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        if rtp_of(mid) < target:
+            lo = mid
+        else:
+            hi = mid
+    m_f = (lo + hi) / 2
+    r = (mx / m_f) ** (1.0 / steps)
+    return _row_from(f, k, m_f, r, mx), r
+
+
+def _snap(k: int, hud: list[float], seed: list[float], mx: float) -> list[float]:
+    row = [0.0] * (k + 1)
+    for h in range(k + 1):
+        if hud[h] > 0 and h != k:
+            row[h] = float(int(seed[h] * 10 + 0.5)) / 10
+    row[k] = mx
+    for h in range(1, k + 1):
+        if hud[h] > 0 and row[h] <= row[h - 1]:
+            row[h] = round(row[h - 1] + 0.1, 1)
+    for h in range(k - 1, _first_paying(hud) - 1, -1):
+        if hud[h] > 0 and row[h] >= row[h + 1]:
+            row[h] = round(row[h + 1] - 0.1, 1)
+    return row
+
+
+def _shape_ok(
+    k: int,
+    hud: list[float],
+    row: list[float],
+    mx: float,
+    r_ideal: float,
+    band: float,
+) -> bool:
+    if len(row) != k + 1 or max(row) != mx:
+        return False
+    if any(abs(m * 10 - round(m * 10)) > EPS for m in row if m):
+        return False
+    if [m == 0 for m in row] != [m == 0 for m in hud]:
+        return False
+    cells = [row[h] for h in _paying(hud, k)]
+    if not all(b > a for a, b in zip(cells, cells[1:])):
+        return False
+    lo_r, hi_r = max(1.1, r_ideal / band), r_ideal * band
+    return all(lo_r - EPS <= b / a <= hi_r + EPS for a, b in zip(cells, cells[1:]))
+
+
+def _legal(k: int, hud: list[float], row: list[float], mx: float) -> bool:
+    rtp = _exact_rtp(k, row)
+    if not (WINDOW[0] <= rtp <= WINDOW[1]):
+        return False
+    stats = base_stats(k, row)
+    return (
+        stats["std"] >= STD_MIN
+        and stats["hit_rate"] >= 0.021
+        and stats["etl_sum"] <= 1.45
     )
 
 
+def _score(k: int, hud: list[float], row: list[float], mx: float) -> tuple:
+    return (
+        0 if _legal(k, hud, row, mx) else 1,
+        abs(_exact_rtp(k, row) - TARGET),
+    )
+
+
+def _repair(
+    k: int,
+    hud: list[float],
+    row: list[float],
+    mx: float,
+    r_ideal: float,
+    band: float,
+) -> list[float] | None:
+    """Deterministic coordinate descent: fixed cell order, fixed deltas."""
+    probs = _probs(k)
+    body = [h for h in _paying(hud, k) if h != k]
+    order = sorted(body, key=lambda h: (-probs[h], h))
+    best = list(row)
+    if not _shape_ok(k, hud, best, mx, r_ideal, band):
+        return None
+    best_score = _score(k, hud, best, mx)
+    deltas = (-0.3, -0.2, -0.1, 0.1, 0.2, 0.3)
+    for _ in range(10_000):
+        improved = False
+        for h in order:
+            for d in deltas:
+                trial = list(best)
+                trial[h] = round(trial[h] + d, 1)
+                if trial[h] <= 0:
+                    continue
+                if not _shape_ok(k, hud, trial, mx, r_ideal, band):
+                    continue
+                s = _score(k, hud, trial, mx)
+                if s < best_score:
+                    best, best_score, improved = trial, s, True
+        if not improved:
+            break
+    return best if _legal(k, hud, best, mx) else None
+
+
+def generate_classic_row(k: int, hud: list[float] | None = None) -> list[float]:
+    """One pick: lock max, solve the geometric ladder onto 0.9650."""
+    hud = hud or CLASSIC_HUD[k]
+    mx = MAX_LADDER[k]
+    seed, r_ideal = _seed_geometric(k, hud, mx)
+    snapped = _snap(k, hud, seed, mx)
+    for band in RATIO_BANDS:
+        row = _repair(k, hud, snapped, mx, r_ideal, band)
+        if row is not None:
+            return row
+    raise RuntimeError(f"pick_{k}: no legal progressive row under max {mx}")
+
+
+def generate_classic_off() -> dict[int, list[float]]:
+    return {k: generate_classic_row(k, hud) for k, hud in sorted(CLASSIC_HUD.items())}
+
+
+#: Shipped Off `classic` chart (picks 2-10). Generated by the max-anchored
+#: geometric ladder onto 0.9650. Pick 2 cannot hit 0.9650 exactly:
+#: 1.7/5.4 = 0.965385 is the closest legal pair.
+CLASSIC_OFF: dict[int, list[float]] = {
+    2: [0.0, 1.7, 5.4],
+    3: [0.0, 0.0, 5.5, 17.5],
+    4: [0.0, 0.0, 2.6, 8.6, 30.0],
+    5: [0.0, 0.0, 1.3, 4.9, 19.5, 75.0],
+    6: [0.0, 0.0, 0.0, 3.9, 14.8, 54.2, 200.0],
+    7: [0.0, 0.0, 0.0, 1.9, 8.2, 34.4, 144.2, 600.0],
+    8: [0.0, 0.0, 0.0, 1.3, 4.9, 17.1, 60.1, 212.0, 750.0],
+    9: [0.0, 0.0, 0.0, 1.0, 3.2, 9.5, 30.5, 92.7, 290.1, 900.0],
+    10: [0.0, 0.0, 0.0, 0.8, 2.2, 6.3, 16.7, 47.7, 129.3, 360.7, 1000.0],
+}
+
+#: Geometric lock replaces the restair `shape_lock` for this chart.
+SHAPE_LOCKED: frozenset[int] = frozenset(range(2, 11))
+
+
 def _validate() -> None:
+    generated = generate_classic_off()
     prev_max = 2.6  # classic pick_1 lattice max
     for k, row in sorted(CLASSIC_OFF.items()):
         hud = CLASSIC_HUD[k]
+        assert row == generated[k], (
+            f"pick_{k}: baked CLASSIC_OFF {row} != generator {generated[k]}"
+        )
         assert len(row) == k + 1, f"pick_{k}: row length {len(row)} != {k + 1}"
-
-        # 0.1x grid: LUT payout = int(round(m * 100)) must be a multiple of 10.
         for h, m in enumerate(row):
             assert m == 0.0 or abs(m * 10 - round(m * 10)) < 1e-9, (
                 f"pick_{k} h={h}: {m} is off the 0.1x lattice"
             )
-
-        # Shape: same zero prefix as the HUD (same first paying hit).
         assert [m == 0 for m in row] == [m == 0 for m in hud], (
             f"pick_{k}: zero prefix diverges from the Classic HUD shape"
         )
-
         paying = [m for m in row if m > 0]
         assert all(b > a for a, b in zip(paying, paying[1:])), (
             f"pick_{k}: ladder is not strictly increasing: {row}"
         )
-
-        # Maxes copied from the HUD (pick_2 excepted: 5.0 cannot land in the
-        # window on the 0.1x grid, so the published snap moves 5.0 -> 5.4).
-        expected_max = 5.4 if k == 2 else max(hud)
+        expected_max = MAX_LADDER[k]
         assert max(row) == expected_max, (
             f"pick_{k}: max {max(row)} != designed max {expected_max}"
         )
         assert max(row) > prev_max, (
-            f"pick_{k}: max {max(row)} does not exceed pick_{k - 1} max {prev_max}"
+            f"pick_{k}: max {max(row)} does not exceed previous max {prev_max}"
         )
         prev_max = max(row)
-
-        # Do not flatten jackpot-shaped HUD cells (40x and up) into the max.
-        # Pick 2's designed 5.4 is the only max exception; body cells whose
-        # HUD value is already a cliff stay on the HUD.
-        for h, (m, hm) in enumerate(zip(row, hud)):
-            if h == k:
-                continue
-            if hm >= 40:
-                assert m == hm, (
-                    f"pick_{k} h={h}: jackpot-shaped HUD {hm} moved to {m}"
-                )
-
         rtp = _exact_rtp(k, row)
         lo, hi = MODE_RTP_BAND
         assert lo < rtp < hi, f"pick_{k}: rtp {float(rtp):.6f} outside band"
@@ -148,7 +287,6 @@ def _validate() -> None:
             f"pick_{k}: rtp {float(rtp):.6f} outside designed window "
             f"{RTP_WINDOW[0]:.4f}-{RTP_WINDOW[1]:.4f}"
         )
-
         stats = base_stats(k, row)
         assert stats["std"] >= STD_MIN, (
             f"pick_{k}: std {stats['std']:.3f} < {STD_MIN} (Base Mode STD floor)"
@@ -164,14 +302,15 @@ def classic_off_summary() -> str:
     lines = []
     for k, row in sorted(CLASSIC_OFF.items()):
         cells = " / ".join(f"{m:g}" for m in row if m > 0)
-        hud = CLASSIC_HUD[k]
+        rtp = float(_exact_rtp(k, row))
         stats = base_stats(k, row)
-        hud_max = 5.4 if k == 2 else max(hud)
+        pay = [m for m in row if m > 0]
+        ratios = [b / a for a, b in zip(pay, pay[1:])]
+        step = f"{min(ratios):.2f}-{max(ratios):.2f}" if ratios else "-"
         lines.append(
             f"classic_pick_{k:<2d} [{cells}] "
-            f"rtp={float(_exact_rtp(k, row)):.6f} "
-            f"std={stats['std']:.3f} hr={stats['hit_rate']:.4f} "
-            f"etl={stats['etl_sum']:.3f} max={max(row):g} hud_max={hud_max:g}"
+            f"rtp={rtp:.6f} edge={1 - rtp:.4%} "
+            f"std={stats['std']:.3f} step=x{step} max={max(row):g}"
         )
     return "\n".join(lines)
 
