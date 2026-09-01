@@ -2,8 +2,11 @@
 """Solve luma-keno Earn paytables (Lumen + extras + Pulse priced into 0.950 RTP).
 
 Off tables in paytables.json["risks"] stay as the certified table-only
-0.950 chart. This script writes paytables.json["earn"] so Earn modes
-pass the same 3-Star gates after bonuses.
+chart, with one designed exception: Off `low` (the Keno Xtreme Easy
+analogue) is copied from the competitor HUD shape + maxes in
+easy_off_low.py rather than solved — the solver's 400x tops contradict
+the Easy copy rule. This script writes paytables.json["earn"] (and the
+Off charts) so every mode passes the same 3-Star gates.
 
 Publish gates (Stake Engine dashboard — binding, stricter than the local
 rgs_verification warnings):
@@ -67,6 +70,7 @@ from keno_pick_one import (
     settled_rtp,
     settled_stats,
 )
+from easy_off_low import EASY_OFF_LOW
 from web_paths import resolve_web_file
 
 POOL = 40
@@ -933,6 +937,11 @@ def _solve_ladder(
                 else:
                     table = pick_one_row_earn(risk) if earn else pick_one_row(risk)
                     errors = []
+            elif not earn and risk == "low" and not bought and buy is None:
+                # Off `low` is the Keno Xtreme Easy analogue: a designed HUD
+                # copy (easy_off_low.py), not a water-fill solve. Earn low and
+                # the buy chips keep their own ladders — this is Off-only.
+                table, errors = list(EASY_OFF_LOW[k]), []
             else:
                 table, errors = solve_table(
                     risk, k, earn, bought, cost, placed, buy

@@ -2,6 +2,90 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-01] change | Off `low` = snapped Keno Xtreme Easy copy (picks 2–10)
+
+- summary: wiki/domain/keno-xtreme-easy.md (shipped table), wiki/sources/keno-xtreme-easy-hud.md
+- touched: games/luma-keno/easy_off_low.py (new), games/luma-keno/solve_paytables.py,
+  games/luma-keno/paytables.json, web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json,
+  library/ (books, LUTs, publish index, configs, stats),
+  wiki/codebase/luma-keno.md, wiki/domain/keno-xtreme-easy.md,
+  wiki/sources/keno-xtreme-easy-hud.md, wiki/index.md,
+  .cursor/skills/keno-math/SKILL.md
+- notes: Replaced the solver Off `low` chart (pick_8 top 3.6×, pick_9/10
+  400× — contradicted the Easy copy rule) with a designed Keno Xtreme Easy
+  copy: HUD shape + maxes kept (tops 4.7/10.4/22.5/36/40/60/70/85/100),
+  illegal cells floored to 0.1× (0.25/3.68/0.47/2.25), 1–3 body cells per
+  pick trimmed into the 0.9630–0.9655 window. Per-pick maxes strictly
+  increase ("gradually increase the multipliers on each pick"). Off-only:
+  Earn `low` + buy chips unchanged (byte-identical re-solve). All 40 Off
+  modes pass check_gates; rgs_verification 160/160 clean; par-sheet spread
+  0.338pp (gate 0.5pp); verify-front-math + verify-copy OK. Contradiction
+  "shipped Off low is still the solver table" resolved on this risk only —
+  classic / medium / high HUD copies still open.
+
+## [2026-09-01] ingest | Keno Xtreme Hard / Degen HUD pick×hit matrix
+
+- summary: wiki/sources/keno-xtreme-hard-hud.md
+- touched: wiki/codebase/luma-keno.md, wiki/sources/keno-xtreme-analysis.md,
+  wiki/domain/keno-xtreme-medium.md, wiki/index.md,
+  .cursor/skills/keno-math/SKILL.md
+- new: wiki/sources/keno-xtreme-hard-hud.md, wiki/domain/keno-xtreme-hard.md
+- notes: In-game Hard = docx Degen = luma-keno high. Pick 10 HUD matches
+  Degen 0.10/0.30/0.50/1.50/3/90/4500/50000. Picks 2–6 player-favor (pick 3
+  500× ≈ 614% RTP). Only illegal cell pick 6 0.25×. Shipped Off high still
+  solver (64.8 / 4699.8) — flagged.
+
+## [2026-09-01] ingest | Keno Xtreme Medium HUD pick×hit matrix
+
+- summary: wiki/sources/keno-xtreme-medium-hud.md
+- touched: wiki/codebase/luma-keno.md, wiki/sources/keno-xtreme-analysis.md,
+  wiki/domain/keno-xtreme-easy.md, wiki/domain/keno-xtreme-classic.md,
+  wiki/index.md, .cursor/skills/keno-math/SKILL.md
+- new: wiki/sources/keno-xtreme-medium-hud.md, wiki/domain/keno-xtreme-medium.md
+- notes: Transcribed Medium (docx Crazy) from HUD screenshots picks 1–10.
+  Maxes 4 / 9.00 / 75 / 175 / 450 / 650 / 750 / 2500 / 4000 / 5000. Pick 2
+  max is 9.00 not 9.3. Pick 3 at 75× is 115% RTP (ETL40 0.911) — Off must
+  use 65.8×. 0.95× and 1.75× illegal on 0.1× lattice. Pick 1 even money
+  0/4. Shipped Off medium still solver (61.5 / 1500) — flagged.
+
+## [2026-09-01] ingest | Keno Xtreme Classic HUD pick×hit matrix
+
+- summary: wiki/sources/keno-xtreme-classic-hud.md
+- touched: wiki/codebase/luma-keno.md, wiki/sources/keno-xtreme-analysis.md,
+  wiki/sources/keno-xtreme-easy-hud.md, wiki/domain/keno-xtreme-easy.md,
+  wiki/index.md, .cursor/skills/keno-math/SKILL.md
+- new: wiki/sources/keno-xtreme-classic-hud.md, wiki/domain/keno-xtreme-classic.md
+- notes: Transcribed Classic (docx Normal) from HUD screenshots picks 1–10.
+  Maxes 2.50 / 5.00 / 40 / 100 / 300 / 500 / 600 / 750 / 900 / 1000. Pick 2
+  max is 5.00 not 5.3. RTP picks 2–10 is 42.2–90.6% (pick 7 thinnest);
+  pick 1 is even money 0.50/2.50. All cells legal on 0.1×. Shipped Off
+  classic still solver table (11.4× / 800×) — flagged, not resolved.
+
+## [2026-09-01] ingest | Easy HUD per-pick tables in wiki md
+
+- summary: wiki/domain/keno-xtreme-easy.md
+- touched: wiki/sources/keno-xtreme-easy-hud.md, wiki/codebase/luma-keno.md,
+  wiki/index.md
+- new: wiki/domain/keno-xtreme-easy.md
+- notes: Added one Hits→Multiplier table per pick (1–10) into the Easy HUD
+  source page, a domain lookup page, and the luma-keno Easy section matrix.
+  Same cells as the 2026-08-31 screenshots.
+
+## [2026-08-31] ingest | Keno Xtreme Easy HUD pick×hit matrix
+
+- summary: wiki/sources/keno-xtreme-easy-hud.md
+- touched: wiki/sources/keno-xtreme-analysis.md, wiki/codebase/luma-keno.md,
+  wiki/index.md, .cursor/skills/keno-math/SKILL.md
+- new: wiki/sources/keno-xtreme-easy-hud.md
+- notes: Transcribed Easy mode from in-game HUD screenshots (picks 1–10).
+  Maxes 2 / 4.5 / 10.4 / 22.5 / 36 / 40 / 60 / 70 / 85 / 100. Exact RTP
+  ~0.987–0.990 except pick 9 at 0.977 — contradicts Stake 96.50% page
+  claim for Easy alone. Illegal 0.1× cells: 0.65, 0.25, 3.68, 0.47, 2.25.
+  keno-math Low analogue now cites this HUD vs the 0.1× snap. Shipped
+  paytables.json Off low is still the solver table (400× tops) — flagged,
+  not resolved.
+
 ## [2026-08-31] feat | Buy 10× / 100× Lumen catch is guaranteed
 
 - summary: wiki/codebase/luma-keno.md

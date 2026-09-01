@@ -1,7 +1,7 @@
 ---
 type: source
 tags: [keno, external-game, stake, probability, rtp]
-updated: 2026-08-25
+updated: 2026-09-01
 source_file: math/wiki/sources/keno_xtreme_probability_analysis.docx
 ---
 
@@ -24,6 +24,26 @@ External analysis of Stake Keno Xtreme (Degen Lab) provided as a .docx in
 - **The docx contains no multiplier values** — every cell is marked
   "VERIFY IN GAME" because the live Stake page doesn't expose the payout
   matrix in crawlable text.
+- **Easy HUD is now transcribed** from in-game screenshots (2026-08-31):
+  [[sources/keno-xtreme-easy-hud]]. Pick 1–10 matrices, maxes
+  **2 / 4.5 / 10.4 / 22.5 / 36 / 40 / 60 / 70 / 85 / 100**, RTP ~99.0%
+  except pick 9 (~97.7%). That **contradicts** the 96.50% page claim for
+  Easy alone; other volatility modes are what create the marketed edge.
+- **Classic HUD is now transcribed** from in-game screenshots (2026-09-01):
+  [[sources/keno-xtreme-classic-hud]] / [[domain/keno-xtreme-classic]].
+  Maxes **2.50 / 5.00 / 40 / 100 / 300 / 500 / 600 / 750 / 900 / 1000**.
+  Picks 2–10 RTP **42.2–90.6%**; pick 1 is even money. Pick 2 max is
+  **5.00×**, not 5.3×.
+- **Medium HUD is now transcribed** from in-game screenshots (2026-09-01):
+  [[sources/keno-xtreme-medium-hud]] / [[domain/keno-xtreme-medium]].
+  Maxes **4 / 9.00 / 75 / 175 / 450 / 650 / 750 / 2500 / 4000 / 5000**.
+  Pick 3 at **75× is 115% RTP** (ETL40 fail — luma-keno uses 65.8×).
+  `0.95×` is illegal on the 0.1× lattice. Pick 2 max is **9.00×**, not 9.3×.
+- **Hard HUD is now transcribed** from in-game screenshots (2026-09-01):
+  [[sources/keno-xtreme-hard-hud]] / [[domain/keno-xtreme-hard]]. Docx name
+  **Degen**. Maxes **4 / 20 / 500 / 1000 / 2500 / 6000 / 12500 / 25000 /
+  40000 / 50000**. Pick 10 body matches Degen. Picks 2–6 are player-favor
+  (pick 3 ~614% RTP at 500×). Only illegal cell: pick 6 `0.25×`.
 
 ## Verification against luma-keno (2026-08-25)
 
@@ -90,5 +110,12 @@ row per hit count.
 
 ## Related
 
+- [[sources/keno-xtreme-easy-hud]] — Easy HUD multipliers (screenshots 2026-08-31).
+- [[sources/keno-xtreme-classic-hud]] — Classic HUD multipliers (screenshots 2026-09-01).
+- [[sources/keno-xtreme-medium-hud]] — Medium HUD multipliers (screenshots 2026-09-01).
+- [[sources/keno-xtreme-hard-hud]] — Hard / Degen HUD multipliers (screenshots 2026-09-01).
+- [[domain/keno-xtreme-classic]]
+- [[domain/keno-xtreme-medium]]
+- [[domain/keno-xtreme-hard]]
 - [[domain/stake-rating-limits]] — the 0.967 ceiling and 3-Star gates.
 - [[codebase/luma-keno]]

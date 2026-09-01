@@ -1,7 +1,7 @@
 ---
 type: codebase
 tags: [keno, luma-keno, rtp, publish, telemetry]
-updated: 2026-08-31
+updated: 2026-09-01
 ---
 
 # Luma Keno math
@@ -265,13 +265,148 @@ spread 0.350pp (`medium_pick_1_earn` 0.9480 → `high_pick_1_earn`
 has only **0.58pp** of headroom, so any retune that thins the low-hit
 rows on `high_pick_6` or `high_pick_9` breaks it first.
 
-See [[domain/stake-engine-publish]] and [[sources/keno-xtreme-analysis]].
+See [[domain/stake-engine-publish]], [[sources/keno-xtreme-analysis]],
+[[sources/keno-xtreme-easy-hud]], [[sources/keno-xtreme-classic-hud]],
+[[sources/keno-xtreme-medium-hud]], and [[sources/keno-xtreme-hard-hud]].
+
+## Easy HUD vs Off `low`
+
+Keno Xtreme **Easy** (competitor) pick × hit multipliers, transcribed in
+[[sources/keno-xtreme-easy-hud]]. Skill `keno-math` maps that to luma-keno
+**Off `low`**: copy shape + maxes, snap illegal cells to 0.1×, retarget
+body RTP to the 0.964 fleet. Easy pick_2 HUD `1.90/4.50` is 0.990 RTP;
+the published snap is `1.8/4.7`. Easy tops are **2 / 4.5 / 10.4 / 22.5 / 36 /
+40 / 60 / 70 / 85 / 100** — do not replace 70/85/100 with 400× on Off.
+
+**Shipped 2026-09-01** (competitor HUD, provenance):
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.65 | 2.00 | | | | | | | | | |
+| **2** | 0.00 | 1.90 | 4.50 | | | | | | | | |
+| **3** | 0.00 | 1.00 | 3.10 | 10.40 | | | | | | | |
+| **4** | 0.00 | 0.80 | 1.80 | 5.00 | 22.50 | | | | | | |
+| **5** | 0.00 | 0.25 | 1.40 | 4.10 | 16.50 | 36.00 | | | | | |
+| **6** | 0.00 | 0.00 | 1.00 | 3.68 | 7.00 | 16.50 | 40.00 | | | | |
+| **7** | 0.00 | 0.00 | 0.47 | 3.00 | 4.50 | 14.00 | 31.00 | 60.00 | | | |
+| **8** | 0.00 | 0.00 | 0.00 | 2.20 | 4.00 | 13.00 | 22.00 | 55.00 | 70.00 | | |
+| **9** | 0.00 | 0.00 | 0.00 | 1.50 | 3.00 | 8.00 | 15.00 | 44.00 | 60.00 | 85.00 | |
+| **10** | 0.00 | 0.00 | 0.00 | 1.40 | 2.25 | 4.50 | 8.00 | 17.00 | 50.00 | 80.00 | 100.0 |
+
+Off `low` **is** that copy as of 2026-09-01 — `easy_off_low.py` is the
+designed chart (validated at import: 0.1× lattice, HUD shape, strictly
+increasing ladder and per-pick maxes, exact RTP window 0.9630–0.9655) and
+`solve_paytables.py` uses it instead of solving. Picks 2 / 7 / 10 are the
+snaps already published in the skill; 3 / 4 / 5 / 6 / 8 / 9 were derived
+under the same rules (keep the max, fewest moved cells, least drift).
+pick_1 stays on the `PICK_ONE_MISS` lattice (miss 0.5).
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | max | RTP |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.50 | 2.30 | | | | | | | | | | 2.3 | 0.9650 |
+| **2** | 0.00 | 1.80 | 4.70 | | | | | | | | | 4.7 | 0.9635 |
+| **3** | 0.00 | 0.60 | 4.20 | 10.40 | | | | | | | | 10.4 | 0.9644 |
+| **4** | 0.00 | 0.80 | 1.70 | 4.90 | 22.50 | | | | | | | 22.5 | 0.9642 |
+| **5** | 0.00 | 0.20 | 1.40 | 4.10 | 16.10 | 36.00 | | | | | | 36.0 | 0.9652 |
+| **6** | 0.00 | 0.00 | 1.00 | 3.60 | 6.40 | 16.50 | 40.00 | | | | | 40.0 | 0.9652 |
+| **7** | 0.00 | 0.00 | 0.40 | 3.00 | 4.40 | 14.40 | 31.00 | 60.00 | | | | 60.0 | 0.9635 |
+| **8** | 0.00 | 0.00 | 0.00 | 2.10 | 4.00 | 12.80 | 22.00 | 55.00 | 70.00 | | | 70.0 | 0.9653 |
+| **9** | 0.00 | 0.00 | 0.00 | 1.50 | 3.00 | 7.50 | 15.00 | 44.00 | 60.00 | 85.00 | | 85.0 | 0.9641 |
+| **10** | 0.00 | 0.00 | 0.00 | 1.40 | 2.10 | 4.40 | 8.00 | 17.00 | 50.00 | 80.00 | 100.0 | 100 | 0.9641 |
+
+Illegal-cell snaps and the trims that reach the window: `0.25→0.2`,
+`3.68→3.6` (+`7.0→6.4`), `0.47→0.4` (`4.5→4.4`, `14→14.4`), `2.25→2.1`
+(`4.5→4.4`). Pick 3 trims `1.0→0.6` and raises `3.1→4.2` (its HUD body
+underpays low hits, so the budget moves up-ladder); pick 4 trims `1.8→1.7`,
+`5.0→4.9`; pick 8 trims `2.2→2.1`, `13→12.8`; pick 9 trims `8→7.5`.
+Maxes move only on pick 2 (`4.5→4.7`). Earn `low`
+and the buy chips are untouched — they keep their own ladders (Earn low
+pick_8–10 advertise ~100× so Lumen×2 × Pulse×2 settles 400×).
+
+## Classic HUD vs Off `classic`
+
+Keno Xtreme **Classic** (docx: Normal) is [[sources/keno-xtreme-classic-hud]]
+/ [[domain/keno-xtreme-classic]]. Off `classic` copies **maxes**, then raises
+body cells to the 0.964 fleet — this HUD is **42.2–90.6% RTP** on picks 2–10
+(pick 1 is even money `0.50/2.50`). Tops: **2.50 / 5.00 / 40 / 100 / 300 /
+500 / 600 / 750 / 900 / 1000**. Pick 2 max is **5.00×**, not 5.3×.
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.50 | 2.50 | | | | | | | | | |
+| **2** | 0.00 | 1.50 | 5.00 | | | | | | | | |
+| **3** | 0.00 | 0.00 | 2.50 | 40.00 | | | | | | |
+| **4** | 0.00 | 0.00 | 1.50 | 9.00 | 100.0 | | | | | |
+| **5** | 0.00 | 0.00 | 1.10 | 4.00 | 10.00 | 300.0 | | | | |
+| **6** | 0.00 | 0.00 | 0.00 | 2.00 | 9.00 | 100.0 | 500.0 | | | |
+| **7** | 0.00 | 0.00 | 0.00 | 1.10 | 3.00 | 9.00 | 100.0 | 600.0 | | |
+| **8** | 0.00 | 0.00 | 0.00 | 1.50 | 3.00 | 9.00 | 40.00 | 200.0 | 750.0 | |
+| **9** | 0.00 | 0.00 | 0.00 | 1.10 | 1.50 | 3.00 | 5.00 | 50.00 | 400.0 | 900.0 |
+| **10** | 0.00 | 0.00 | 0.00 | 1.10 | 1.50 | 2.00 | 4.00 | 10.00 | 50.00 | 500.0 | 1000 |
+
+> ⚠️ Contradicts [[sources/keno-xtreme-classic-hud]]: shipped
+> `paytables.json["risks"]["classic"]` is still the solver table (pick_2 max
+> **11.4×**, pick_10 max **800×**). Off `classic` does not yet copy this HUD.
+
+## Medium HUD vs Off `medium`
+
+Keno Xtreme **Medium** (docx: Crazy) is [[sources/keno-xtreme-medium-hud]]
+/ [[domain/keno-xtreme-medium]]. Jackpot-shaped. Pick 1 is even money
+`0.00/4.00`. Pick 3 HUD **75×** is **115% RTP** and fails ETL40 — Off must
+use **65.8×**, not 75. Snap `0.95→1.0`. Tops: **4 / 9.00 / 75 / 175 / 450 /
+650 / 750 / 2500 / 4000 / 5000** (pick 2 max is **9.00×**, not 9.3×).
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.00 | 4.00 | | | | | | | | | |
+| **2** | 0.00 | 0.95 | 9.00 | | | | | | | | |
+| **3** | 0.00 | 0.00 | 1.75 | 75.00 | | | | | | |
+| **4** | 0.00 | 0.00 | 0.95 | 7.00 | 175.0 | | | | | |
+| **5** | 0.00 | 0.00 | 1.20 | 3.00 | 9.00 | 450.0 | | | | |
+| **6** | 0.00 | 0.00 | 0.00 | 1.50 | 5.00 | 50.00 | 650.0 | | | |
+| **7** | 0.00 | 0.00 | 0.00 | 0.95 | 3.00 | 7.50 | 90.00 | 750.0 | | |
+| **8** | 0.00 | 0.00 | 0.00 | 0.95 | 2.00 | 5.00 | 15.00 | 150.0 | 2500 | |
+| **9** | 0.00 | 0.00 | 0.00 | 0.95 | 1.10 | 2.50 | 5.00 | 40.00 | 350.0 | 4000 |
+| **10** | 0.00 | 0.00 | 0.00 | 0.50 | 0.95 | 1.50 | 3.00 | 9.00 | 40.00 | 400.0 | 5000 |
+
+> ⚠️ Contradicts [[sources/keno-xtreme-medium-hud]]: shipped
+> `paytables.json["risks"]["medium"]` is still the solver table (pick_2 max
+> **3.4×**, pick_3 **61.5×**, pick_10 **1500×**). Off `medium` does not yet
+> copy this HUD.
+
+## Hard HUD vs Off `high`
+
+Keno Xtreme **Hard** (docx: Degen) is [[sources/keno-xtreme-hard-hud]]
+/ [[domain/keno-xtreme-hard]]. Jackpot-or-bust. Pick 10 HUD **0.10 / 0.30 /
+0.50 / 1.50 / 3 / 90 / 4500 / 50000** matches keno-math Degen. Picks **2–6
+are player-favor** (pick 3 at 500× is ~614% RTP). Tops: **4 / 20 / 500 /
+1000 / 2500 / 6000 / 12500 / 25000 / 40000 / 50000**. Snap pick 6 `0.25→0.2`
+or drop it. Off fattens hits 5–9; 10/10 can stay 50,000×.
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.00 | 4.00 | | | | | | | | | |
+| **2** | 0.00 | 0.00 | 20.00 | | | | | | | | |
+| **3** | 0.00 | 0.00 | 0.50 | 500 | | | | | | |
+| **4** | 0.00 | 0.00 | 0.00 | 1.50 | 1000 | | | | | |
+| **5** | 0.00 | 0.00 | 0.00 | 0.50 | 25.00 | 2500 | | | | |
+| **6** | 0.00 | 0.00 | 0.00 | 0.25 | 1.50 | 350.0 | 6000 | | | |
+| **7** | 0.00 | 0.00 | 0.00 | 0.10 | 0.50 | 3.00 | 950.0 | 12500 | | |
+| **8** | 0.00 | 0.00 | 0.00 | 0.10 | 0.50 | 1.50 | 40.00 | 1500 | 25000 | |
+| **9** | 0.00 | 0.00 | 0.00 | 0.10 | 0.30 | 0.50 | 5.00 | 40.00 | 3500 | 40000 |
+| **10** | 0.00 | 0.00 | 0.00 | 0.10 | 0.30 | 0.50 | 1.50 | 3.00 | 90.00 | 4500 | 50000 |
+
+> ⚠️ Contradicts [[sources/keno-xtreme-hard-hud]]: shipped
+> `paytables.json["risks"]["high"]` is still the solver table (pick_2 max
+> **13.4×**, pick_3 **64.8×**, pick_10 **4699.8×**). Off `high` does not yet
+> copy this HUD.
 
 ## Files
 
 | Path | Owns |
 | --- | --- |
 | `keno_pick_one.py` | Off + Earn + buy pick_1 lattices; lumen/extra criteria; `lumen_pay` |
+| `easy_off_low.py` | Designed Off `low` chart (Keno Xtreme Easy HUD copy, picks 2–10); validates at import |
 | `solve_paytables.py` | `solve_off` / `solve_earn` / `solve_buy`; cap ladder incl. `MAX_PAYOUT_ABS` and `TOP_OVERRIDE`; `check_gates` |
 | `paytables.json` | `risks` (Off) + `earn` + `buy10` + `buy100` + `solved` (which sections this solve owns) |
 | `run.py` / `export_luts.py` | 160-mode books; Off hypergeometric; Earn/buy lumen×extra weights; extra-gated `pulseRolled`; writes the client's `src/data/keno-books.json` |
@@ -289,4 +424,12 @@ Publish only `library/publish_files/`.
 
 - Skill `keno-math`
 - [[domain/stake-engine-publish]]
+- [[domain/keno-xtreme-easy]] — Easy pick 1–10 hit multipliers.
+- [[domain/keno-xtreme-classic]] — Classic pick 1–10 hit multipliers.
+- [[domain/keno-xtreme-medium]] — Medium pick 1–10 hit multipliers.
+- [[domain/keno-xtreme-hard]] — Hard / Degen pick 1–10 hit multipliers.
 - [[sources/keno-xtreme-analysis]]
+- [[sources/keno-xtreme-easy-hud]] — Keno Xtreme Easy pick×hit matrix (screenshots 2026-08-31).
+- [[sources/keno-xtreme-classic-hud]] — Keno Xtreme Classic pick×hit matrix (screenshots 2026-09-01).
+- [[sources/keno-xtreme-medium-hud]] — Keno Xtreme Medium pick×hit matrix (screenshots 2026-09-01).
+- [[sources/keno-xtreme-hard-hud]] — Keno Xtreme Hard pick×hit matrix (screenshots 2026-09-01).
