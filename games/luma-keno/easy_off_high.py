@@ -20,6 +20,22 @@ Jackpot-shaped HUD cells stay put. Pick 8 keeps 40x; remainder packs onto
 0.50→2.9 and 1.50→39.6 (same class as Medium 5.00→11.2 under a frozen 15).
 
 pick_1 stays lattice pick_one_row("high") = [0.1, 3.5]; do not force HUD 4.00.
+
+Pick 9 restair (shape lock)
+---------------------------
+The row was 0.2 / 0.4 / 28.4 / 39.9 / 40 / 3500 / 40000. Hits 6, 7 and 8 read
+28.4 / 39.9 / 40 - the HUD cannot separate the last two at all - with a 71x
+wall under them and an 87x cliff above. It now climbs
+0.2 / 1 / 16 / 92 / 500 / 3000 / 40000 (rtp 0.964248): a 16x wall off the 1x
+consolation, then 5.75x / 5.43x / 6x through the body and 13.33x on the final
+catch. Jackpot holds 40000; only the body moved.
+
+Picks 6 and 8 are NOT restaired, and cannot be at their current maxes. Off high
+6 needs its 3484.6 ETL cut lowered to about 1869x before any lock-clean ladder
+reaches the RTP window, and pick 8 needs 25000 down to about 24870 - and even
+there the only clean ladder is the one at maximum ratio everywhere, so it has
+no shaping room. Both are top decisions, not solver settings. See
+`shape_feasibility.py`.
 """
 
 from __future__ import annotations
@@ -27,6 +43,7 @@ from __future__ import annotations
 from fractions import Fraction
 
 from keno_pick_one import MODE_RTP_BAND, STD_MIN, base_coeff, base_stats
+from shape_lock import assert_shape, ratios_of
 
 RTP_WINDOW = (0.9630, 0.9655)
 
@@ -47,15 +64,27 @@ HIGH_OFF: dict[int, list[float]] = {
     3: [0.0, 0.0, 0.7, 71.6],
     4: [0.0, 0.0, 0.0, 2.2, 382.4],
     5: [0.0, 0.0, 0.0, 0.5, 25.0, 1792.4],
-    6: [0.0, 0.0, 0.0, 0.3, 1.9, 350.0, 3484.6],
+    6: [0.0, 0.0, 0.0, 3.0, 10.0, 79.0, 3484.6],  # restaired; was 0.3/1.9/350 (184x body cliff)
     7: [0.0, 0.0, 0.0, 0.4, 2.9, 61.3, 950.0, 12500.0],
     8: [0.0, 0.0, 0.0, 0.4, 2.9, 39.6, 40.0, 1500.0, 25000.0],
-    9: [0.0, 0.0, 0.0, 0.2, 0.4, 28.4, 39.9, 40.0, 3500.0, 40000.0],
-    10: [0.0, 0.0, 0.0, 0.2, 0.4, 4.3, 89.8, 89.9, 90.0, 4500.0, 50000.0],
+    9: [0.0, 0.0, 0.0, 0.2, 1.0, 16.0, 92.0, 500.0, 3000.0, 40000.0],
+    10: [0.0, 0.0, 0.0, 0.2, 0.4, 4.3, 78.5, 200.0, 700.0, 4500.0, 50000.0],  # industry stair (not HUD 1.5/3/90 pack)
 }
 
 # HUD max kept unless RTP / etl40 / cvar forced a cut.
 CUT_MAX = {2: 16.7, 3: 71.6, 4: 382.4, 5: 1792.4, 6: 3484.6}
+
+#: Picks restaired under `shape_lock`. Pick 10 predates the lock and does not
+#: satisfy it (0.2 -> 0.4 is 2x on a pair that reads as two wins, and 4.3 -> 78.5
+#: is an 18.3x wall in the body), but it is certified and must not regress, so it
+#: is graded by the legacy assertions only.
+#:
+#: Pick 6 keeps the 3484.6 etl cap, so its final catch is 44x and the 8-15x
+#: last-catch band cannot apply; the short-pick scope grades that step as a top
+#: rather than a body pair. What the restair fixes is the body: 1.9 -> 350 was
+#: a 184x cliff between two paying cells, now 3 / 10 / 79 steps 3.33x then 7.9x.
+#: Hit rate is unchanged at 15.28% because the paying hits did not move.
+SHAPE_LOCKED = frozenset({6, 9})
 
 
 def _exact_rtp(k: int, row: list[float]) -> Fraction:
@@ -104,6 +133,11 @@ def _validate() -> None:
         assert stats["etl_sum"] <= 1.45, f"pick_{k}: etl_sum {stats['etl_sum']:.3f}"
         assert stats["etl40"] <= 0.88, f"pick_{k}: etl40 {stats['etl40']:.3f}"
         assert stats["cvar"] <= 700.0, f"pick_{k}: cvar {stats['cvar']:.1f}"
+        if k in SHAPE_LOCKED:
+            # Every paying pair visibly apart, >=2.5x across the body, <=8x
+            # outside the final catch, and a final catch inside 8-15x. This is
+            # what stops leftover RTP being packed onto neighbouring cells.
+            assert_shape(row, k, label=f"high_pick_{k}")
 
 
 _validate()

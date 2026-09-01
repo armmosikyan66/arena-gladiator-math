@@ -74,6 +74,7 @@ from easy_off_low import EASY_OFF_LOW
 from easy_off_classic import CLASSIC_OFF
 from easy_off_medium import MEDIUM_OFF
 from easy_off_high import HIGH_OFF
+from restaired_rows import scaled_row_for
 
 # Earn `low` Easy analogue. Off low is the HUD copy (maxes 4.7..100). Earn
 # prices Lumen x2 and Pulse x2 into the same identity: advertised top is at
@@ -2304,8 +2305,13 @@ def patch_earn_classic(paytables_path: str | None = None) -> dict:
     failures: dict[str, list[str]] = {}
     for k in PICKS:
         name = f"classic_pick_{k}_earn"
+        pinned = scaled_row_for("earn", "classic", k)
         if k == 1:
             table, errors = pick_one_row_earn("classic"), []
+        elif pinned is not None:
+            # Restaired by hand and held under the shape lock; re-solving it
+            # would re-pack the body cells the restair spread out.
+            table, errors = pinned, []
         else:
             table, errors = solve_table("classic", k, True, False, 1.0, False, None)
         stats = mode_stats_for("classic", k, table, True, False, False, 1.0, None)

@@ -32,6 +32,21 @@ Picks 2-10 maxes strictly increase across picks:
 Scope: **Off only.** Earn `classic` and the buy chips keep their own
 ladders. pick_1 stays on the closed-form lattice in keno_pick_one.py
 (classic miss 0.4, hit 2.6) and is not in CLASSIC_OFF.
+
+Pick 10 restair
+---------------
+Hits 3-5 were 1.9 / 2.0 / 2.1 - three cells the HUD cannot separate. They now
+read 1.6 / 2.3 / 3.1 (rtp 0.965026), which is what shipped in paytables.json.
+This file had been left declaring the old row, so the source of truth and the
+exported chart disagreed; the row above is now the exported one.
+
+The restair spreads those three cells but the row is **not** shape-locked, and
+cannot be while the top stays at 1000x. With 8 paying cells the tightest
+lock-clean ladder (1.25x between consolation cells, 2.5x across the mid ladder,
+8x final catch) tops out at rtp 0.679 - the designed window 0.9630-0.9655 is
+unreachable from below. Holding the window at 1000x requires either fewer
+paying cells or a top around 1418x, both of which are product decisions rather
+than solver settings. See `shape_feasibility.py`.
 """
 
 from __future__ import annotations
@@ -69,8 +84,11 @@ CLASSIC_OFF: dict[int, list[float]] = {
     7: [0.0, 0.0, 0.0, 2.9, 7.9, 9.0, 100.0, 600.0],
     8: [0.0, 0.0, 0.0, 2.5, 3.1, 9.0, 40.0, 200.0, 750.0],
     9: [0.0, 0.0, 0.0, 2.3, 2.4, 3.0, 5.0, 50.0, 400.0, 900.0],
-    10: [0.0, 0.0, 0.0, 1.9, 2.0, 2.1, 4.0, 10.0, 50.0, 500.0, 1000.0],
+    10: [0.0, 0.0, 0.0, 1.6, 2.3, 3.1, 4.0, 10.0, 50.0, 500.0, 1000.0],
 }
+
+#: Picks restaired under `shape_lock`. Empty for Classic: see the note below.
+SHAPE_LOCKED: frozenset[int] = frozenset()
 
 
 def _exact_rtp(k: int, row: list[float]) -> Fraction:

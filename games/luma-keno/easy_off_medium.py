@@ -11,8 +11,25 @@ it. Highest in-window max is 60.3x.
 Pick 2: HUD 9.00 cannot land on-grid (1.1/9.0 = 0.9423 under; 1.1/9.4 =
 0.965385). Same lattice exception as Classic 5.0→5.4.
 
-Jackpot-shaped HUD cells (>=9x on picks 8-10, >=40x otherwise) stay put.
+Jackpot-shaped HUD cells (>=9x on picks 8-10, >=40x otherwise) stay put on
+every pick except 10 - see SHAPE_LOCKED below.
+
 pick_1 stays lattice [0.2, 3.2] in keno_pick_one.py.
+
+Pick 10 restair (shape lock)
+----------------------------
+The solved row used to be 0.7 / 2.6 / 7.4 / 8.9 / 9 / 40 / 400 / 5000. Hits 5,
+6 and 7 were 7.4 / 8.9 / 9.0 - three cells the HUD cannot tell apart - and then
+40 -> 400 was a 10x cliff. That was not a designed curve; it was the solver
+closing its RTP gap on whichever body cell held the most probability mass.
+
+The row now climbs 0.9 / 2 / 6 / 18 / 52 / 175 / 550 / 5000 with mid ratios of
+3.00 / 3.00 / 2.89 / 3.37 / 3.14 and a 9.09x final catch. Consolation stays at
+0.9x - a refund, not a celebration - and the HUD's 40 / 400 body cells move,
+because holding them was what forced the pack underneath.
+
+This costs the copy relationship to the competitor Medium HUD on pick 10 only.
+`shape_lock.assert_shape` enforces it so the pack cannot come back.
 """
 
 from __future__ import annotations
@@ -20,6 +37,7 @@ from __future__ import annotations
 from fractions import Fraction
 
 from keno_pick_one import MODE_RTP_BAND, STD_MIN, base_coeff, base_stats
+from shape_lock import assert_shape, describe, ratios_of
 
 RTP_WINDOW = (0.9630, 0.9655)
 
@@ -44,8 +62,13 @@ MEDIUM_OFF: dict[int, list[float]] = {
     7: [0.0, 0.0, 0.0, 2.9, 7.4, 13.6, 90.0, 750.0],
     8: [0.0, 0.0, 0.0, 1.9, 4.9, 11.2, 15.0, 150.0, 2500.0],
     9: [0.0, 0.0, 0.0, 1.4, 3.2, 7.9, 13.0, 40.0, 350.0, 4000.0],
-    10: [0.0, 0.0, 0.0, 0.7, 2.6, 7.4, 8.9, 9.0, 40.0, 400.0, 5000.0],
+    10: [0.0, 0.0, 0.0, 0.9, 2.0, 6.0, 18.0, 52.0, 175.0, 550.0, 5000.0],
 }
+
+#: Picks whose column has been restaired under `shape_lock`. Picks outside this
+#: set still carry the solver's original packing and are graded only by the
+#: legacy assertions below; adding a pick here without restairing it will fail.
+SHAPE_LOCKED = frozenset({10})
 
 
 def _exact_rtp(k: int, row: list[float]) -> Fraction:
@@ -64,6 +87,12 @@ def _validate() -> None:
         assert [m == 0 for m in row] == [m == 0 for m in hud], (
             f"pick_{k}: zero prefix diverges from Medium HUD"
         )
+        if k in SHAPE_LOCKED:
+            # Strictly increasing, >=1.25x between any two paying cells, >=2.5x
+            # across the mid ladder, <=8x outside the final catch, and a final
+            # catch inside 8-15x. This is what stops leftover RTP being packed
+            # onto neighbours the HUD cannot separate.
+            assert_shape(row, k, label=f"medium_pick_{k}")
         paying = [m for m in row if m > 0]
         assert all(b > a for a, b in zip(paying, paying[1:])), (
             f"pick_{k}: not strictly increasing: {row}"
@@ -99,9 +128,13 @@ def medium_off_summary() -> str:
     lines = []
     for k, row in sorted(MEDIUM_OFF.items()):
         cells = " / ".join(f"{m:g}" for m in row if m > 0)
+        mark = " [shape-locked]" if k in SHAPE_LOCKED else ""
         lines.append(
-            f"medium_pick_{k:<2d} [{cells}] rtp={float(_exact_rtp(k, row)):.6f}"
+            f"medium_pick_{k:<2d} [{cells}] rtp={float(_exact_rtp(k, row)):.6f}{mark}"
         )
+        if k in SHAPE_LOCKED:
+            rats = " ".join(f"{h}->{n}:{r:.2f}" for h, n, r in ratios_of(row))
+            lines.append(f"{'':16s}ratios {rats}")
     return "\n".join(lines)
 
 
