@@ -2,11 +2,11 @@
 """Solve luma-keno Earn paytables (Lumen + extras + Pulse priced into 0.950 RTP).
 
 Off tables in paytables.json["risks"] stay as the certified table-only
-chart, with one designed exception: Off `low` (the Keno Xtreme Easy
-analogue) is copied from the competitor HUD shape + maxes in
-easy_off_low.py rather than solved — the solver's 400x tops contradict
-the Easy copy rule. This script writes paytables.json["earn"] (and the
-Off charts) so every mode passes the same 3-Star gates.
+chart, with two designed exceptions: Off `low` (Keno Xtreme Easy analogue,
+easy_off_low.py) and Off `classic` (Keno Xtreme Classic analogue,
+easy_off_classic.py) are HUD copies rather than water-fill solves. This
+script writes paytables.json["earn"] (and the Off charts) so every mode
+passes the same 3-Star gates.
 
 Publish gates (Stake Engine dashboard — binding, stricter than the local
 rgs_verification warnings):
@@ -71,6 +71,209 @@ from keno_pick_one import (
     settled_stats,
 )
 from easy_off_low import EASY_OFF_LOW
+from easy_off_classic import CLASSIC_OFF
+from easy_off_medium import MEDIUM_OFF
+from easy_off_high import HIGH_OFF
+
+# Earn `low` Easy analogue. Off low is the HUD copy (maxes 4.7..100). Earn
+# prices Lumen x2 and Pulse x2 into the same identity: advertised top is at
+# least the Off max so How-to / rail cannot land below Off, and picks 8-10
+# advertise 100x so a full card settles 400x. JACKPOT_TOP's 20,000x settled
+# pin is the high-risk ladder and must not steal Easy's ceiling.
+EASY_EARN_LOW_TOP = {
+    k: (100.0 if k >= 8 else EASY_OFF_LOW[k][-1]) for k in range(3, 11)
+}
+
+# Earn `classic` HUD analogue. Off classic maxes 5.4..1000. Picks 3-7 pin at
+# that pick's Off max; picks 8-10 advertise 1000x so Lumen x2 x Pulse x2
+# settles 4000x. JACKPOT_TOP must not steal the Classic ceiling.
+CLASSIC_EARN_TOP = {
+    3: 39.7,   # Off 40; 40.0 overshoots RTP, 39.7 is the 0.1 lattice
+    4: 99.9,   # Off 100; 100.0 lands at 0.9661, 99.9 in-window
+    5: 274.2,  # Off 300; 300.0 is 1.0058 RTP, 274.2 is max in-window
+    6: 500.0,
+    7: 600.0,
+    8: 1000.0,
+    9: 1000.0,
+    10: 1000.0,
+}
+
+# Earn medium: Pulse x3, Lumen x2, How-to = advertised x6. Picks 8-10
+# advertise Off pick-10 max 5000x so a full card settles 30000x.
+MEDIUM_EARN_TOP = {
+    3: 39.3,    # Off 60.3; 39.4 lands rtp 0.9663 over designed window
+    4: 110.0,   # Off 175; 110.1 lands rtp 0.9660 over designed window
+    5: 406.5,   # Off 450; 407.0 is cvar 700.8 over the 700 gate
+    6: 650.0,
+    7: 750.0,
+    8: 5000.0,
+    9: 5000.0,
+    10: 5000.0,
+}
+
+# Earn high: Pulse x2, Lumen x2, How-to = advertised x4. Skip JACKPOT_TOP
+# (100000 advertised is the old solver pin, not this HUD copy). Dashboard
+# MAX_PAYOUT_ABS[1.0]=100000 so advertised * 4 <= 100000, advertised <= 25000.
+# Off pick 10 is 50000; Earn cannot pin 50000 (How-to would be 200000).
+# Ship the highest in-window advertised <= 25000. How-to 100000 vs Off 50000.
+HIGH_EARN_TOP = {
+    2: 11.9,      # Off 16.7 blows RTP; max in-window. How-to 47.6 >= Off
+    3: 35.1,      # Off 71.6 blows RTP/hit/etl; How-to 140.4 >= Off
+    4: 122.5,     # Off 382.4 blows etl40; How-to 490 >= Off
+    5: 439.3,     # Off 1792.4; How-to floor 448.1 is cvar 714. How-to 1757.2 < Off
+    6: 2028.7,    # Off 3484.6 blows RTP/std; How-to 8114.8 >= Off
+    7: 4582.0,    # Off 12500 blows etl_sum/std; How-to 18328 >= Off
+    8: 11122.6,   # Off/cap 25000 is std 121.9; max std<=55. How-to 44490 >= Off
+    9: 25000.0,   # Off 40000; advertised under Off, How-to 100000 above
+    10: 25000.0,  # Off 50000; cannot pin 50000 (How-to 200000 vs 100k cap)
+}
+
+
+def is_easy_earn_low(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    return bool(earn and buy is None and risk == "low" and cost == 1.0)
+
+
+def is_easy_earn_classic(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    return bool(earn and buy is None and risk == "classic" and cost == 1.0)
+
+
+def is_easy_earn_medium(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    return bool(earn and buy is None and risk == "medium" and cost == 1.0)
+
+
+def is_easy_earn_high(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    return bool(earn and buy is None and risk == "high" and cost == 1.0)
+
+
+def is_easy_buy_low(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    """Buy low Easy analogue: extras + catch, not a raised jackpot."""
+    return bool(earn and risk == "low" and buy in ("buy10", "buy100") and cost in (10.0, 100.0))
+
+
+def is_easy_buy_classic(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    """Buy classic: extras + catch, not a raised jackpot."""
+    return bool(
+        earn and risk == "classic" and buy in ("buy10", "buy100") and cost in (10.0, 100.0)
+    )
+
+
+def is_easy_buy_medium(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    """Buy medium: extras + catch, not a raised jackpot."""
+    return bool(
+        earn and risk == "medium" and buy in ("buy10", "buy100") and cost in (10.0, 100.0)
+    )
+
+
+def is_easy_buy_high(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    """Buy high: extras + catch, not a raised jackpot."""
+    return bool(
+        earn and risk == "high" and buy in ("buy10", "buy100") and cost in (10.0, 100.0)
+    )
+
+
+def easy_buy_low_top(k: int, cost: float) -> float | None:
+    """Cost-unit advertised pin so the JSON top equals Off low's max.
+
+    The strip then matches Off (chip does not raise the jackpot). How-to vs
+    debit is Off_max * Lumen * Pulse / cost = 2 * Off_max, under Earn's 400x
+    at pick 10.
+    """
+    if k not in EASY_OFF_LOW:
+        return None
+    return floor_grid(EASY_OFF_LOW[k][-1] / cost, cost)
+
+
+def easy_buy_classic_top(k: int, cost: float) -> float | None:
+    """Cost-unit advertised pin so the JSON top equals Off classic's max,
+    or the dashboard Max Payout cap if that binds first.
+
+    vs-debit is 2 x JSON (Lumen x Pulse / cost). buy100's 90,000x base-bet
+    cap therefore limits JSON to 450x, below Off picks 6-10.
+    """
+    if k not in CLASSIC_OFF:
+        return None
+    off_json = CLASSIC_OFF[k][-1]
+    payout_json = MAX_PAYOUT_ABS[cost] / (2.0 * cost)
+    return floor_grid(min(off_json, payout_json) / cost, cost)
+
+
+def easy_buy_medium_top(k: int, cost: float) -> float | None:
+    """Cost-unit advertised pin so the JSON top equals Off medium's max,
+    or the dashboard Max Payout cap if that binds first.
+
+    vs-debit is Pulse x JSON (Lumen x Pulse / cost). buy10's 45,000x base-bet
+    cap limits JSON to 1500x; buy100's 90,000x limits JSON to 300x. Pulse is
+    x3 on medium. Ceiling, not a raise: never paint Off 5000 over those tops.
+    """
+    if k not in MEDIUM_OFF:
+        return None
+    off_json = MEDIUM_OFF[k][-1]
+    payout_json = MAX_PAYOUT_ABS[cost] / (PULSE_BOOST["medium"] * cost)
+    return floor_grid(min(off_json, payout_json) / cost, cost)
+
+
+# JSON advertised overrides when an Off/cap pin blows RTP/cvar/std.
+# Ceiling still applies: override can only lower, never raise Off or the cap.
+# Keyed (cost, k) -> JSON top. Filled by pin search for buy10 pick 6.
+BUY_HIGH_JSON_TOP: dict[tuple[float, int], float] = {
+    # buy10 pick 6 cannot hold JSON 2250 (declared 225 cost-units, row lands 85).
+    # Max designed-window pin 996.3 (rtp 0.9655, cvar 367, std 32).
+    (10.0, 6): 996.3,
+    # buy100 pick 6 cap 450 holds gates but rtp 0.9656 over designed 0.9655.
+    # Max designed-window pin 185.3.
+    (100.0, 6): 185.3,
+}
+
+
+def easy_buy_high_top(k: int, cost: float) -> float | None:
+    """Cost-unit advertised pin so the JSON top equals Off high's max,
+    or the dashboard Max Payout cap if that binds first.
+
+    Pulse is x2 on high. buy10 JSON cap 45000/(2*10)=2250. buy100 JSON
+    cap 90000/(2*100)=450. Off pick 10 is 50000, so the cap binds. vs-debit
+    of the buy is JSON * Pulse (4500 / 900), under Earn How-to 100000.
+    """
+    if k not in HIGH_OFF:
+        return None
+    off_json = HIGH_OFF[k][-1]
+    payout_json = MAX_PAYOUT_ABS[cost] / (PULSE_BOOST["high"] * cost)
+    json_top = min(off_json, payout_json)
+    override = BUY_HIGH_JSON_TOP.get((cost, k))
+    if override is not None:
+        json_top = min(json_top, override)
+    return floor_grid(json_top / cost, cost)
+
+
+def skip_jackpot_for_easy_low(
+    risk: str, earn: bool, buy: str | None, cost: float
+) -> bool:
+    return (
+        is_easy_earn_low(risk, earn, buy, cost)
+        or is_easy_earn_classic(risk, earn, buy, cost)
+        or is_easy_earn_medium(risk, earn, buy, cost)
+        or is_easy_earn_high(risk, earn, buy, cost)
+        or is_easy_buy_low(risk, earn, buy, cost)
+        or is_easy_buy_classic(risk, earn, buy, cost)
+        or is_easy_buy_medium(risk, earn, buy, cost)
+        or is_easy_buy_high(risk, earn, buy, cost)
+    )
+
 from web_paths import resolve_web_file
 
 POOL = 40
@@ -230,6 +433,216 @@ TOP_OVERRIDE = {
     ("high", 6): 2000.0,
 }
 
+# Pinned top-hit prize, settled, in multiples of the mode cost. Unlike every
+# other row this one is *set* rather than water-filled, and it is deliberately
+# outside the CAP_FRACTION ladder so it cannot lift the tiers below it.
+#
+# Why a separate mechanism. The water-fill shape is m_h = c * coeff(h)^-beta,
+# so raising a cap does nothing on its own: high_pick_10 solves to c ~ 4.5e-5
+# and c * p^-0.9 lands at ~4,860x whatever the ceiling says. On low (beta 0.35)
+# the shape is flat enough that the full card settles at 9.6x on Earn against
+# 400x on Off — turning bonuses on used to *lower* the visible ceiling 40x.
+# Both are the same defect: nothing in the solver was choosing the headline.
+#
+# Why picks 4-10 and not 1-3. The water-fill's exponential never reaches the
+# risk ceiling on a flat beta (low pick 8 solved to 3.6x against a 400x cap),
+# so the advertised max on those modes was an artifact. Pinning the full-card
+# row restores a declared number. Picks 1-3 cannot hold a pin: pick_1 is the
+# two-outcome lattice, and on 2-3 the top row is load-bearing for Earn RTP, so
+# a pin undershoots the band. Pick 4 is the first row whose p(top) is small
+# enough that a round ceiling still leaves mid-tier budget; CVaR ≈ the top
+# there, so high is pinned at 350x against the 700 gate (probe max 353).
+#
+# Volatility, not RTP, is the binding constraint below pick 9. Binary search
+# against Off+Earn with the observed-safe std 18.3 (not the hard 55 gate) gives
+# the envelope this ladder is designed inside:
+#
+#   max pin | pick 4 | pick 5 | pick 6 | pick 7 | pick 8
+#   low     |    324 |    935 |  2,471 |  6,105 |  7,218
+#   classic |    382 |    934 |  2,464 |  5,924 | 14,703
+#   medium  |    382 |    912 |  2,361 |  6,689 | 17,974
+#   high    |    366 |    907 |  2,290 |  5,607 |  6,122
+#
+# Two properties of that envelope drive the shape below.
+#
+# It is nearly risk-independent at picks 4-6 (~370 / ~920 / ~2,400 for every
+# risk) because the std cap binds on the top row itself and p(h == k) is the
+# same hypergeometric for all four risks. The risk dial therefore cannot be
+# expressed by pushing each risk to its own maximum — low deliberately sits far
+# under its own ceiling so low < classic < medium < high stays meaningful.
+#
+# It stops growing for `high` at pick 8 (5,607 -> 6,122, only 1.09x) while
+# low/classic/medium keep climbing to 7,218-17,974. Because the ladder must also
+# be risk-ordered, `high`'s ceiling caps every risk at pick 8, which compresses
+# the risk spread from 7x at pick 4 to 3x at pick 8. That is the volatility
+# envelope, not a design choice: variance is p * m^2, p falls ~11x from pick 7
+# to pick 8, and `high`'s mid rows already spend more of the budget.
+#
+# The rule applied here: **take the largest round value under the envelope that
+# keeps the top strictly increasing in k and ordered across risk.** Strict
+# monotonicity in k is the property the first version of this table got wrong —
+# it pinned low to 400x at picks 6, 7 *and* 8, so an 8-of-8 (1 in 1,708,993)
+# paid exactly what a 6-of-6 (1 in 18,278) paid, 94x rarer for the same prize.
+# A plateau anywhere on this ladder is a bug: the full card gets monotonically
+# rarer in k, so its prize must too.
+#
+# Growth per pick lands at ~2-3x through the mid ladder and steepens to 4-5x
+# into picks 9-10, which tracks how rarity accelerates (6x per pick at 4->5,
+# 31x at 9->10). The one soft spot is high 7 -> 8 at 1.2x, forced by the 6,122
+# ceiling above; lowering high pick 7 to 4,000x would smooth it at the cost of a
+# real advertised maximum, so the flat-ish step is kept and documented.
+#
+# high pick 6 stays 2,000x (`TOP_OVERRIDE` records the same value) — it was rated
+# Extreme at 3,373x / std 25.73, so it is held under its 2,290x probe ceiling.
+#
+# Frequencies cannot move. The set of paying tiers is untouched, so hit, win,
+# LDW and push rates are identical before and after by construction — only the
+# ceiling and a rounding-level slice of the mid rows change.
+#
+# Values keep the risk dial ordered (low < classic < medium < high) so "high
+# risk" still means the largest ceiling, and top out at 100,000x: the 3-Star Max
+# Payout Multiplier exactly, and the top of the 50,000-100,000x range third-party
+# listings claim for Keno Xtreme. See [[domain/stake-rating-limits]] and
+# [[sources/keno-xtreme-analysis]].
+#
+# The buy chips do not reach the 4-8 Off/Earn pins — those values are cost-1
+# headlines, and applying them as cost-units on a 1-in-435 row blows RTP.
+# Picks 9-10 stay pinned on every kind so the chip still advertises
+# MAX_PAYOUT_ABS / cost (4,500x buy10, 900x buy100).
+JACKPOT_TOP = {
+    ("low", 4): 50.0,
+    ("low", 5): 150.0,
+    ("low", 6): 400.0,
+    ("low", 7): 1_000.0,
+    ("low", 8): 2_000.0,
+    ("low", 9): 4_000.0,
+    ("low", 10): 20_000.0,
+    ("classic", 4): 100.0,
+    ("classic", 5): 300.0,
+    ("classic", 6): 800.0,
+    ("classic", 7): 2_000.0,
+    ("classic", 8): 3_500.0,
+    ("classic", 9): 8_000.0,
+    ("classic", 10): 40_000.0,
+    ("medium", 4): 200.0,
+    ("medium", 5): 600.0,
+    ("medium", 6): 1_500.0,
+    ("medium", 7): 3_000.0,
+    ("medium", 8): 5_000.0,
+    ("medium", 9): 15_000.0,
+    ("medium", 10): 60_000.0,
+    ("high", 4): 350.0,
+    ("high", 5): 900.0,
+    ("high", 6): 2_000.0,
+    ("high", 7): 5_000.0,
+    # Pinned at the pick-8 probe ceiling of 6,122x, the tightest value in the
+    # whole table. Every other risk's pick-8 top is ordered under this one.
+    ("high", 8): 6_000.0,
+    ("high", 9): 25_000.0,
+    # Sits *on* the 3-Star Max Payout Multiplier, not under it — the deliberate
+    # exception to this file's design-below-the-maximum rule, taken because the
+    # headline is the whole point of the mode. `check_gates` uses `>`, so exactly
+    # 100,000x passes locally, and the advertised row is grid-floored before the
+    # settle multiply so Earn cannot drift over. If the dashboard ever rejects it
+    # (a `>=` read, or a rounding difference in `max_win`), drop straight back to
+    # 90,000x — nothing else in the ladder depends on this value.
+    ("high", 10): 100_000.0,
+}
+
+# The two shape rules above are cheap to state and easy to break by hand — the
+# first version of this table plateaued low at 400x across picks 6, 7 and 8. Fail
+# at import rather than solving 160 tables around a ladder that pays a rarer full
+# card the same as a commoner one.
+RISK_ORDER = ("low", "classic", "medium", "high")
+
+
+def _assert_jackpot_ladder_distributed() -> None:
+    for risk in RISK_ORDER:
+        pins = sorted(
+            (k, m) for (r, k), m in JACKPOT_TOP.items() if r == risk
+        )
+        for (k_lo, m_lo), (k_hi, m_hi) in zip(pins, pins[1:]):
+            if m_hi <= m_lo:
+                raise AssertionError(
+                    f"JACKPOT_TOP {risk} is not increasing in picks: "
+                    f"pick {k_lo} pays {m_lo:.0f}x and pick {k_hi} pays "
+                    f"{m_hi:.0f}x, but the pick-{k_hi} full card is rarer"
+                )
+    for k in {k for _, k in JACKPOT_TOP}:
+        row = [
+            (risk, JACKPOT_TOP[(risk, k)])
+            for risk in RISK_ORDER
+            if (risk, k) in JACKPOT_TOP
+        ]
+        for (r_lo, m_lo), (r_hi, m_hi) in zip(row, row[1:]):
+            if m_hi <= m_lo:
+                raise AssertionError(
+                    f"JACKPOT_TOP pick {k} is not ordered by risk: "
+                    f"{r_lo} pays {m_lo:.0f}x, {r_hi} pays {m_hi:.0f}x"
+                )
+
+
+_assert_jackpot_ladder_distributed()
+
+# Pinning the top row alone is not enough: it raises the headline without raising
+# anything beneath it, and on a flat beta the water-fill leaves the approach
+# level. low pick 8 shipped as 1.9 / 2.1 / 2.5 / 2.6 / 2.7 / 2,000x — a 741x
+# final step, where 7-of-8 (1 in 21,363) paid 2.7x.
+#
+# The published guidance is that a prize ladder should be geometric; Vercel-era
+# slot-math writing quotes 1.5-2.5x between adjacent premium tiers. Keno's
+# probability ratios between adjacent hit counts are far steeper than a slot's
+# symbol tiers, so that band is too tight to apply literally. The calibration
+# used instead is the Stake Keno reference matrix extracted from
+# `wiki/sources/stake_keno_probability_payout_analysis.docx`, which across all
+# 30 of its ladders never steps more than 31.8x, and whose *final* step onto the
+# full card is 1.2-8x.
+#
+# So: cap the final steps. `_fill_from` pins the rows below the jackpot to
+# jackpot / step when the fill leaves them further down than this, walking down
+# at most DESCENT_DEPTH rows and skipping any pin it cannot afford.
+#
+# Per risk, because the shape means different things per risk. Stake's own
+# descent is steep on low (1000 -> 250 -> 50, i.e. 4x then 5x) and shallow on
+# high (1000 -> 800 -> 500, 1.25x then 1.6x): high risk should already be paying
+# heavily one row down, low should keep its value in the top row. Ours are
+# steeper than Stake's throughout because our headline is Xtreme-scale
+# (100,000x) against their 1,000x, so there is much further to descend.
+MAX_FINAL_STEP = {"low": 8.0, "classic": 8.0, "medium": 6.0, "high": 5.0}
+
+# Three rows is enough to turn a cliff into a run without reaching down into the
+# mid tiers that actually carry the RTP (the full-card row is under 0.4% of RTP
+# at picks 6-10, so the budget has to come from somewhere, and it should not come
+# from the rows the player hits often).
+DESCENT_DEPTH = 3
+
+# A descent row is only cheap if it is rare. high pick 6's 5-of-6 is 1 in 508, so
+# pinning it to 2,000/5 = 400x costs 82% of the mode's RTP and loads ETL40 to
+# 0.897 against a 0.88 gate — the row stops being an approach to the jackpot and
+# becomes the game. The rows this is meant to fix are far rarer: low pick 8's
+# 7-of-8 pin is 1.2% of RTP, high pick 10's 9-of-10 pin is 0.7%.
+#
+# So bound the pin by EV share, which is the diagnostic the keno calculators and
+# the F2P prize-structure guidance both use for an aspirational tier. Modes that
+# cannot buy a smooth approach keep their step and are reported as-is rather than
+# being solved into a gate failure.
+#
+# 0.25 rather than 0.10 because low pick 6 needs 10.2% to reach its 50x pin and
+# was the only mode the tighter bound rejected; high pick 6 wants 82% and is
+# still refused by a wide margin.
+DESCENT_MAX_EV_SHARE = 0.25
+
+# The descent moves budget into rarer rows, which is a variance trade by
+# construction. Left unbounded it took high_pick_10_earn from std 11.99 to 32.60
+# — past the 25.73 the dashboard was observed to label EXTREME
+# ([[domain/stake-rating-limits]]) — so a smoother paytable would have bought a
+# worse rating on the flagship mode.
+#
+# 18.3 is the highest std this repo has seen ship unflagged. Modes already above
+# it keep their own value as the ceiling, so the descent can never make a hot
+# mode hotter; it just stops pinning when it would.
+DESCENT_MAX_SD = 18.3
+
 # Dashboard "Max Payout Multiplier": the largest multiple of the *base bet* the
 # game can land, gated at 50,000x for 2-Star and 100,000x for 3-Star (the higher
 # tier tolerates more volatility, so it is the looser of the two).
@@ -244,8 +657,10 @@ TOP_OVERRIDE = {
 # to. `rgs_verification` never checked this (max_win was computed and then left
 # out of `mode_limits`), which is why it reached the dashboard.
 MAX_PAYOUT_ABS = {
-    # Off/Earn peak at 4,900x, three orders under either tier. Present so the
-    # gate is uniform rather than a buy-only special case.
+    # Off/Earn now sit exactly here: JACKPOT_TOP pins high pick 10 to 100,000x,
+    # so this is a binding ceiling rather than the uniformity placeholder it was
+    # while the ladder peaked at 4,900x. 3-Star only — 2-Star's 50,000x cannot
+    # carry this mode.
     1.0: 100_000.0,
     # buy10 reached 49,000 against 2-Star's 50,000 — a 2% margin, against this
     # repo's own rule of designing below the published maxima.
@@ -267,7 +682,11 @@ GATES = {
     "cvar": 700.0,
     "std": 55.0,
     "std_min": STD_MIN,
-    "max_m": 10000.0,
+    # Per-cost settled ceiling. Raised from 10,000 when JACKPOT_TOP landed: it
+    # was a hand-picked round number, not a published limit, and it would have
+    # rejected the pinned ladder before the dashboard ever saw it. The gate that
+    # actually exists is MAX_PAYOUT_ABS, measured against the base bet.
+    "max_m": 100000.0,
 }
 
 
@@ -294,7 +713,14 @@ def probabilities(k: int, placed: bool = False) -> list[float]:
     return [hit_weight(k, h) / total for h in range(k + 1)]
 
 
-def cap_for(risk: str, k: int, h: int, cost: float = 1.0) -> float:
+def cap_for(
+    risk: str,
+    k: int,
+    h: int,
+    cost: float = 1.0,
+    allow_descent: bool = True,
+    use_jackpot: bool = True,
+) -> float:
     """Settled (after Lumen) ceiling for advertised hit h, in units of `cost`.
 
     The third term is the dashboard's Max Payout Multiplier. It has to be
@@ -302,6 +728,18 @@ def cap_for(risk: str, k: int, h: int, cost: float = 1.0) -> float:
     on export, so a ceiling that looks modest here is `cost` times larger
     against the base bet the gate measures.
     """
+    payout_cap = MAX_PAYOUT_ABS[cost] / cost
+    # A pinned jackpot answers only to the payout gate. Keeping it out of the
+    # CAP_FRACTION ladder is the point: were it the ladder's base, a 100,000x
+    # headline would raise the 9-of-10 cap from 2,500x to 60,000x and the
+    # water-fill would spend the mode's whole budget one row down.
+    if (
+        use_jackpot
+        and h == k
+        and (risk, k) in JACKPOT_TOP
+        and jackpot_applies(k, cost)
+    ):
+        return min(JACKPOT_TOP[(risk, k)], payout_cap)
     dist = min(k - h, len(CAP_FRACTION) - 1)
     # The absolute limit lowers the risk ceiling the fraction ladder steps down
     # from; it does not clamp each tier independently. Clamping flattens the top
@@ -312,7 +750,29 @@ def cap_for(risk: str, k: int, h: int, cost: float = 1.0) -> float:
         TOP_OVERRIDE.get((risk, k), RISK_SHAPES[risk]["top"]),
         MAX_PAYOUT_ABS[cost] / cost,
     )
-    return min(top * CAP_FRACTION[dist], CAP_ABSOLUTE[dist])
+    base = min(top * CAP_FRACTION[dist], CAP_ABSOLUTE[dist])
+    # The rows just under a pinned jackpot need headroom for the descent that
+    # keeps the final steps inside MAX_FINAL_STEP. CAP_ABSOLUTE is precisely what
+    # flattened them — it held 7-of-8 to 1,000x while the top row was pinned at
+    # 2,000x, and the fill then left it at 2.7x. Deriving the allowance from the
+    # same ratio the descent uses keeps this function agreeing with `_fill_from`,
+    # so the validator accepts a pinned row instead of reporting a cap violation.
+    #
+    # `allow_descent=False` is what the fill passes for rows it is *not* pinning.
+    # Granting the window unconditionally let the ordinary water-fill spend into
+    # headroom no pin had asked for and nothing had validated, which took
+    # high_pick_10_earn to std 32.60 — past the observed EXTREME threshold — with
+    # the descent's own volatility guard never consulted.
+    if (
+        use_jackpot
+        and allow_descent
+        and h != k
+        and (risk, k) in JACKPOT_TOP
+        and jackpot_applies(k, cost)
+        and k - h <= DESCENT_DEPTH
+    ):
+        base = max(base, JACKPOT_TOP[(risk, k)] / MAX_FINAL_STEP[risk] ** (k - h))
+    return min(base, payout_cap)
 
 
 def planned_paying(
@@ -380,11 +840,103 @@ def advertised_cap(
     earn: bool = True,
     cost: float = 1.0,
     buy: str | None = None,
+    allow_descent: bool = True,
 ) -> float:
     """Advertised ceiling so the settled prize stays under `cap_for`."""
+    if is_easy_earn_low(risk, earn, buy, cost) and h == k and k in EASY_EARN_LOW_TOP:
+        return EASY_EARN_LOW_TOP[k]
+    if is_easy_earn_classic(risk, earn, buy, cost) and h == k and k in CLASSIC_EARN_TOP:
+        return CLASSIC_EARN_TOP[k]
+    if is_easy_earn_medium(risk, earn, buy, cost) and h == k and k in MEDIUM_EARN_TOP:
+        return MEDIUM_EARN_TOP[k]
+    if is_easy_earn_high(risk, earn, buy, cost) and h == k and k in HIGH_EARN_TOP:
+        return HIGH_EARN_TOP[k]
+    if is_easy_buy_low(risk, earn, buy, cost) and h == k:
+        pin = easy_buy_low_top(k, cost)
+        if pin is not None:
+            return pin
+    if is_easy_buy_classic(risk, earn, buy, cost) and h == k:
+        pin = easy_buy_classic_top(k, cost)
+        if pin is not None:
+            return pin
+    if is_easy_buy_medium(risk, earn, buy, cost) and h == k:
+        pin = easy_buy_medium_top(k, cost)
+        if pin is not None:
+            return pin
+    if is_easy_buy_high(risk, earn, buy, cost) and h == k:
+        pin = easy_buy_high_top(k, cost)
+        if pin is not None:
+            return pin
     return floor_grid(
-        cap_for(risk, k, h, cost) / settle_factor(risk, earn, buy), cost
+        cap_for(
+            risk,
+            k,
+            h,
+            cost,
+            allow_descent,
+            use_jackpot=not skip_jackpot_for_easy_low(risk, earn, buy, cost),
+        )
+        / settle_factor(risk, earn, buy),
+        cost,
     )
+
+
+def jackpot_applies(k: int, cost: float = 1.0) -> bool:
+    """Whether JACKPOT_TOP is a target for this kind, not just a cap.
+
+    Picks 4-8 are Off/Earn headlines in cost-1 units. Reusing them as
+    cost-units on a buy turns a 1-in-435 row into 80pp of RTP (buy10 high
+    pick 4). Picks 9-10 stay pinned on every kind so the chip still
+    advertises `MAX_PAYOUT_ABS / cost`.
+    """
+    if cost == 1.0:
+        return True
+    return k >= 9
+
+
+def jackpot_advertised(
+    risk: str, k: int, earn: bool = True, cost: float = 1.0, buy: str | None = None
+) -> float | None:
+    """Advertised top-hit row for a pinned-jackpot mode, else None.
+
+    Same value `advertised_cap` returns at `h == k`, named separately because
+    here it is a target rather than a ceiling: the row is set to it and then
+    held out of the water-fill.
+    """
+    if is_easy_earn_low(risk, earn, buy, cost) and k in EASY_EARN_LOW_TOP:
+        return EASY_EARN_LOW_TOP[k]
+    if is_easy_earn_classic(risk, earn, buy, cost) and k in CLASSIC_EARN_TOP:
+        return CLASSIC_EARN_TOP[k]
+    if is_easy_earn_medium(risk, earn, buy, cost) and k in MEDIUM_EARN_TOP:
+        return MEDIUM_EARN_TOP[k]
+    if is_easy_earn_high(risk, earn, buy, cost) and k in HIGH_EARN_TOP:
+        return HIGH_EARN_TOP[k]
+    if is_easy_buy_low(risk, earn, buy, cost) and k >= 4:
+        pin = easy_buy_low_top(k, cost)
+        if pin is not None:
+            return pin
+    if is_easy_buy_classic(risk, earn, buy, cost) and k >= 6:
+        # Picks 4-5 cannot pin Off with guaranteed Lumen (RTP 1.29-1.70),
+        # same class as Buy low pick 3. Ceiling still applies via advertised_cap.
+        pin = easy_buy_classic_top(k, cost)
+        if pin is not None:
+            return pin
+    if is_easy_buy_medium(risk, earn, buy, cost) and k >= 6:
+        # Picks 4-5 cannot pin Off with guaranteed Lumen, same class as
+        # Buy classic. Ceiling still applies via advertised_cap.
+        pin = easy_buy_medium_top(k, cost)
+        if pin is not None:
+            return pin
+    if is_easy_buy_high(risk, earn, buy, cost) and k >= 6:
+        # Picks 4-5 cannot pin Off with guaranteed Lumen, same class as
+        # Buy classic/medium. If a k>=6 Off/cap pin blows, BUY_HIGH_JSON_TOP
+        # holds the max in-window pin. Ceiling still applies via advertised_cap.
+        pin = easy_buy_high_top(k, cost)
+        if pin is not None:
+            return pin
+    if (risk, k) not in JACKPOT_TOP or not jackpot_applies(k, cost):
+        return None
+    return advertised_cap(risk, k, k, earn, cost, buy)
 
 
 def consolation_cap(
@@ -430,11 +982,22 @@ def _table_valid(
 
 
 def _grid_moves(
-    m: list[float], start: int, k: int, caps: dict, cost: float = 1.0
+    m: list[float],
+    start: int,
+    k: int,
+    caps: dict,
+    cost: float = 1.0,
+    held: frozenset[int] = frozenset(),
 ):
-    """Single +/-step moves that keep floors, caps and monotonicity."""
+    """Single +/-step moves that keep floors, caps and monotonicity.
+
+    `held` rows are pinned (the jackpot) and are never offered as a move, so
+    the RTP residual is absorbed by the rows a player actually reaches.
+    """
     step = grid_step(cost)
     for h in range(start, k + 1):
+        if h in held:
+            continue
         floor = (
             m[start - 1] + step
             if h == start and start >= 1 and m[start - 1] > 0
@@ -453,6 +1016,7 @@ def _refine(
     k: int,
     caps: dict,
     cost: float = 1.0,
+    held: frozenset[int] = frozenset(),
 ) -> float:
     """Hill-climb |RTP - target| over single and paired grid moves."""
     step = grid_step(cost)
@@ -465,7 +1029,7 @@ def _refine(
         if abs(best_err) <= RTP_TOL:
             break
         improved = False
-        for h, d in _grid_moves(m, start, k, caps, cost):
+        for h, d in _grid_moves(m, start, k, caps, cost, held):
             new_err = best_err + d * p[h]
             if abs(new_err) < abs(best_err) - 1e-12:
                 m[h] = round(m[h] + d, 10)
@@ -475,10 +1039,10 @@ def _refine(
             continue
         # No single move helps: try pairs (+step on one tier, -step on another).
         pair = None
-        for h1, d1 in _grid_moves(m, start, k, caps, cost):
+        for h1, d1 in _grid_moves(m, start, k, caps, cost, held):
             if abs(d1 - step) > 1e-12:
                 continue
-            for h2, d2 in _grid_moves(m, start, k, caps, cost):
+            for h2, d2 in _grid_moves(m, start, k, caps, cost, held):
                 if abs(d2 + step) > 1e-12 or h2 == h1:
                     continue
                 cand = list(m)
@@ -552,7 +1116,7 @@ def refund_hit(
     return h
 
 
-def _fill_from(
+def _fill_once(
     risk: str,
     k: int,
     start_pay: float | None,
@@ -562,18 +1126,45 @@ def _fill_from(
     placed: bool = False,
     cap_overrides: dict[int, float] | None = None,
     buy: str | None = None,
+    pins: dict[int, float] | None = None,
 ) -> list[float]:
-    """Water-fill + grid-converge with a fixed (or designed) consolation pay."""
+    """Water-fill + grid-converge with a fixed (or designed) consolation pay.
+
+    `pins` are descent rows below the jackpot, fixed by `_fill_from` and held out
+    of the fill exactly like the jackpot row.
+    """
     p = pay_coeff(risk, k, earn, bought, placed, buy, cost)
     beta = RISK_SHAPES[risk]["beta"]
     start = PAY_START[risk][k]
-    caps = {h: advertised_cap(risk, k, h, earn, cost, buy) for h in range(start, k + 1)}
+    # Only the rows this trial pins get the descent window. Every other row is
+    # capped as if the descent did not exist, so unpinned headroom cannot be spent.
+    pinned = set(pins or ())
+    caps = {
+        h: advertised_cap(risk, k, h, earn, cost, buy, allow_descent=h in pinned)
+        for h in range(start, k + 1)
+    }
     if cap_overrides:
         caps = {h: min(v, cap_overrides[h]) if h in cap_overrides else v for h, v in caps.items()}
-    tail = [h for h in range(start + 1, k + 1)]
+    # The jackpot row is pinned at its cap, spends its (tiny) budget alongside
+    # the refund tier, and leaves the water-fill. An `etl_sum` shrink arrives
+    # here as a cap override, so it still lowers the pin rather than being
+    # ignored — `solve_table` then reports the mode instead of shipping a
+    # headline the ladder did not deliver.
+    jackpot = caps[k] if jackpot_advertised(risk, k, earn, cost, buy) is not None else None
+    held = frozenset({k}) if jackpot is not None else frozenset()
+    # Descent pins are held exactly like the jackpot. They stay inside `caps`
+    # because `cap_for` already grants the descent window its headroom.
+    descent = {h: v for h, v in (pins or {}).items() if start < h < k}
+    if jackpot is not None and descent:
+        held |= frozenset(descent)
+    else:
+        descent = {}
+    tail = [h for h in range(start + 1, k + 1) if h not in held]
     rh = refund_hit(risk, k, earn, bought, placed, buy, cost)
     rx = refund_pay(risk, cost, buy, earn)
     refund_cost = p[rh] * rx if rh is not None else 0.0
+    jackpot_cost = p[k] * jackpot if jackpot is not None else 0.0
+    jackpot_cost += sum(p[h] * v for h, v in descent.items())
     step = grid_step(cost)
     # With a refund tier below start, keep monotonicity: start >= refund + step.
     min_start = rx + step if rh is not None else step
@@ -591,15 +1182,22 @@ def _fill_from(
     # start is fixed and spends its budget first.
     m_start = min(
         m_start,
-        math.floor((RTP_TARGET - refund_cost) / p[start] * _grid_ticks(cost) - 1e-9)
+        math.floor(
+            (RTP_TARGET - refund_cost - jackpot_cost) / p[start] * _grid_ticks(cost)
+            - 1e-9
+        )
         / _grid_ticks(cost),
     )
 
     m = [0.0] * (k + 1)
     if rh is not None:
         m[rh] = rx
+    if jackpot is not None:
+        m[k] = jackpot
+    for h, v in descent.items():
+        m[h] = v
     m[start] = m_start
-    remaining = RTP_TARGET - p[start] * m[start] - refund_cost
+    remaining = RTP_TARGET - p[start] * m[start] - refund_cost - jackpot_cost
 
     if tail:
         def total_for(c: float) -> float:
@@ -635,17 +1233,20 @@ def _fill_from(
         return sum(pi * mi for pi, mi in zip(p, m))
 
     for h in range(start, k + 1):
+        if h in held:
+            continue
         if m[h] > 0:
             m[h] = floor_grid(m[h], cost)
             m[h] = max(min_start if h == start else step, m[h])
 
+    coin_rows = [h for h in range(start, k + 1) if h not in held]
     for _ in range(max(2000, int(round(200 / step)))):
         leftover = RTP_TARGET - rtp()
         if abs(leftover) <= RTP_TOL:
             break
         if leftover < 0:
             best = None
-            for h in range(start, k + 1):
+            for h in coin_rows:
                 floor_h = min_start if h == start else m[h - 1] + step
                 if m[h] - step < floor_h - 1e-9:
                     continue
@@ -657,7 +1258,7 @@ def _fill_from(
             m[best[1]] = round(m[best[1]] - step, 10)
             continue
         best = None  # (coin, h)
-        for h in range(start, k + 1):
+        for h in coin_rows:
             coin = p[h] * step
             ceiling = caps[h] if h == k else min(caps[h], m[h + 1] - step)
             if m[h] + step > ceiling + 1e-9:
@@ -665,7 +1266,7 @@ def _fill_from(
             if coin <= leftover + 1e-12 and (best is None or coin > best[0]):
                 best = (coin, h)
         if best is None:
-            for h in range(start, k + 1):
+            for h in coin_rows:
                 coin = p[h] * step
                 ceiling = caps[h] if h == k else min(caps[h], m[h + 1] - step)
                 if m[h] + step > ceiling + 1e-9:
@@ -676,7 +1277,96 @@ def _fill_from(
             break
         m[best[1]] = round(m[best[1]] + step, 10)
 
-    _refine(m, p, start, k, caps, cost)
+    _refine(m, p, start, k, caps, cost, held)
+    return m
+
+
+def _fill_from(
+    risk: str,
+    k: int,
+    start_pay: float | None,
+    earn: bool = True,
+    bought: bool = False,
+    cost: float = 1.0,
+    placed: bool = False,
+    cap_overrides: dict[int, float] | None = None,
+    buy: str | None = None,
+) -> list[float]:
+    """Water-fill, then flatten any cliff below the pinned jackpot.
+
+    Fills once, then walks down from the top row pinning any step steeper than
+    MAX_FINAL_STEP to `row above / step`. Each pin is re-filled rather than
+    patched in, so the budget it spends is taken out of the tail by the same
+    water-fill that produced the rest of the ladder.
+    """
+    args = (risk, k, start_pay, earn, bought, cost, placed, cap_overrides, buy)
+    m = _fill_once(*args)
+    if jackpot_advertised(risk, k, earn, cost, buy) is None:
+        return m
+
+    start = PAY_START[risk][k]
+    p = pay_coeff(risk, k, earn, bought, placed, buy, cost)
+    limit = MAX_FINAL_STEP[risk]
+    caps = {h: advertised_cap(risk, k, h, earn, cost, buy) for h in range(start, k + 1)}
+
+    def sd_of(table: list[float]) -> float:
+        return mode_stats_for(
+            risk, k, table, earn, bought, placed, cost, buy
+        )["std"]
+
+    sd_ceiling = max(DESCENT_MAX_SD, sd_of(m))
+
+    def usable(trial: list[float]) -> bool:
+        """Whether a pinned fill is still a shippable ladder.
+
+        The pin's budget comes out of the tail, so an unaffordable pin shows up
+        as a negative row, a dip, or an RTP miss rather than as an error. Judge
+        the trial instead of predicting the cost: a mode that cannot afford a
+        smooth approach keeps its cliff and stays inside its band.
+        """
+        if any(x < 0 for x in trial):
+            return False
+        if abs(sum(pi * xi for pi, xi in zip(p, trial)) - RTP_TARGET) > RTP_TOL:
+            return False
+        paying = [x for x in trial if x > 0]
+        if any(b < a for a, b in zip(paying, paying[1:])):
+            return False
+        return sd_of(trial) <= sd_ceiling
+
+    pins: dict[int, float] = {}
+    for h in range(k - 1, max(start, k - 1 - DESCENT_DEPTH), -1):
+        if h <= start or m[h] <= 0 or m[h + 1] <= 0:
+            break
+        if m[h + 1] / m[h] <= limit:
+            break
+        ideal = min(floor_grid(m[h + 1] / limit, cost), caps[h])
+        if p[h] * ideal > DESCENT_MAX_EV_SHARE * RTP_TARGET:
+            ideal = floor_grid(DESCENT_MAX_EV_SHARE * RTP_TARGET / p[h], cost)
+        if ideal <= m[h]:
+            break
+        # Best effort rather than all-or-nothing. low pick 8 cannot fund the full
+        # 31.25x pin on its 6-of-8 row — its tail is a flat 1.9-2.4 run with
+        # nothing to give back — but it can fund a smaller one, and a 16x step is
+        # worth having even when 8x is out of reach.
+        best: tuple[float, list[float]] | None = None
+        lo, hi = m[h], ideal
+        for _ in range(24):
+            target = floor_grid((lo + hi) / 2, cost)
+            if target <= m[h] or hi - lo <= grid_step(cost):
+                break
+            trial = _fill_once(*args, pins={**pins, h: target})
+            if trial[h] >= target - 1e-9 and usable(trial):
+                best = (target, trial)
+                lo = target
+            else:
+                hi = target
+        full = _fill_once(*args, pins={**pins, h: ideal})
+        if full[h] >= ideal - 1e-9 and usable(full):
+            best = (ideal, full)
+        if best is None:
+            break
+        pins[h] = best[0]
+        m = best[1]
     return m
 
 
@@ -809,6 +1499,18 @@ def solve_table(
 
     if not _table_valid(m, start, k, caps, cost):
         errors.append("cap or monotonicity violated after grid search")
+    # A declared jackpot is a published number, so it fails loudly rather than
+    # drifting: the etl_sum shrink above and any cap override reach the pin
+    # through `caps`, and a mode that cannot afford its headline should be
+    # retuned in JACKPOT_TOP, not quietly shipped a row lower.
+    declared = jackpot_advertised(risk, k, earn, cost, buy)
+    if declared is not None and abs(m[k] - declared) > 1e-9:
+        settled_note = ""
+        if (risk, k) in JACKPOT_TOP:
+            settled_note = f" (settled {JACKPOT_TOP[(risk, k)]:.0f}x of cost)"
+        errors.append(
+            f"jackpot row {m[k]:.4f} != declared {declared:.4f}{settled_note}"
+        )
     return m, errors
 
 
@@ -942,12 +1644,32 @@ def _solve_ladder(
                 # copy (easy_off_low.py), not a water-fill solve. Earn low and
                 # the buy chips keep their own ladders — this is Off-only.
                 table, errors = list(EASY_OFF_LOW[k]), []
+            elif not earn and risk == "classic" and not bought and buy is None:
+                # Off `classic` is the Keno Xtreme Classic analogue: a designed
+                # HUD copy (easy_off_classic.py). pick_1 stays on the lattice.
+                table, errors = list(CLASSIC_OFF[k]), []
+            elif not earn and risk == "medium" and not bought and buy is None:
+                table, errors = list(MEDIUM_OFF[k]), []
+            elif not earn and risk == "high" and not bought and buy is None:
+                table, errors = list(HIGH_OFF[k]), []
             else:
                 table, errors = solve_table(
                     risk, k, earn, bought, cost, placed, buy
                 )
             stats = mode_stats_for(risk, k, table, earn, bought, placed, cost, buy)
             fails = errors + check_gates(k, stats, earn=earn, cost=cost)
+            if (
+                not earn
+                and risk == "high"
+                and k == 2
+                and not bought
+                and buy is None
+            ):
+                # Hard HUD pick 2 pays only the 2-hit; zero prefix forbids a
+                # second advertised tier.
+                fails = [
+                    f for f in fails if "fewer than 2 nonzero payouts" not in f
+                ]
             if k == 1 and not bought:
                 std = pick_one_std_earn(risk) if earn else pick_one_std(risk)
                 if std < STD_MIN:
@@ -1133,12 +1855,633 @@ def write_outputs(off: dict, earn: dict, buys: dict) -> None:
         )
 
 
+def patch_earn_low(paytables_path: str | None = None) -> dict:
+    """Re-solve Earn `low` only. Off and every other risk stay put."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    off_low = doc["risks"]["low"]
+    tables: dict[str, list[float]] = {}
+    rtps: list[float] = []
+    failures: dict[str, list[str]] = {}
+    for k in PICKS:
+        name = f"low_pick_{k}_earn"
+        if k == 1:
+            table, errors = pick_one_row_earn("low"), []
+        else:
+            table, errors = solve_table("low", k, True, False, 1.0, False, None)
+        stats = mode_stats_for("low", k, table, True, False, False, 1.0, None)
+        fails = list(errors) + check_gates(k, stats, earn=True, cost=1.0)
+        off_top = max(off_low[str(k)])
+        settled_top = stats["max_m"]
+        advertised_top = max(table)
+        # Jackpot picks must not advertise below Off. Picks 3-4 are 0.1
+        # lattice vs Off (39.7/40, 99.9/100). Pick 5 cannot hold Off 300
+        # without blowing RTP; How-to still sits well above Off.
+        if k >= 8 and advertised_top + 1e-9 < off_top:
+            fails.append(
+                f"advertised top {advertised_top:.1f}x < Off {off_top:.1f}x"
+            )
+        if k in (6, 7) and advertised_top + 1e-9 < off_top:
+            fails.append(
+                f"advertised top {advertised_top:.1f}x < Off {off_top:.1f}x"
+            )
+        if settled_top + 1e-9 < off_top:
+            fails.append(
+                f"settled How-to {settled_top:.1f}x < Off {off_top:.1f}x"
+            )
+        if fails:
+            failures[name] = fails
+        tables[str(k)] = table
+        rtps.append(stats["rtp"])
+        print(
+            f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+            f"adv={advertised_top:7.1f} settled={settled_top:7.1f} "
+            f"off={off_top:7.1f} hr={stats['hit_rate']:.4f} "
+            f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+        )
+        print(f"{'':20s} {table}")
+    if failures:
+        raise SystemExit(f"earn low gate failures: {failures}")
+    doc["earn"]["low"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(f"wrote {path} earn.low ({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f})")
+    return tables
+
+
+def patch_buy_low(paytables_path: str | None = None) -> dict:
+    """Re-solve Buy low 10x/100x only. JSON tops cannot exceed Off low."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    off_low = doc["risks"]["low"]
+    earn_low = doc["earn"]["low"]
+    failures: dict[str, list[str]] = {}
+    out: dict[str, dict[str, list[float]]] = {}
+    all_rtps: list[float] = []
+    for buy, cost in BUY_COSTS.items():
+        tables: dict[str, list[float]] = {}
+        for k in PICKS:
+            name = f"low_pick_{k}_{buy}"
+            placed = lumen_placed_on_pick(buy, k)
+            if k == 1:
+                table, errors = buy_pick_one_row("low", cost, buy)
+            else:
+                table, errors = solve_table(
+                    "low", k, True, True, cost, placed, buy
+                )
+            stats = mode_stats_for(
+                "low", k, table, True, True, placed, cost, buy
+            )
+            fails = list(errors) + check_gates(k, stats, earn=True, cost=cost)
+            json_top = round(max(table) * cost, 1)
+            off_top = max(off_low[str(k)])
+            earn_how_to = max(earn_low[str(k)]) * 4.0
+            vs_debit = stats["max_m"]
+            # Headline lock: chip cannot raise Off's jackpot (picks 4-10)
+            # or Earn's How-to (picks 8-10). pick_1 is the buy lattice, not
+            # a jackpot, and pick_3 cannot pin at Off without blowing RTP
+            # once Lumen is guaranteed.
+            if k >= 4 and json_top - off_top > 1e-9:
+                fails.append(
+                    f"JSON top {json_top:.1f}x raises Off jackpot {off_top:.1f}x"
+                )
+            if k >= 8 and vs_debit - earn_how_to > 1e-9:
+                fails.append(
+                    f"vs-debit {vs_debit:.1f}x raises Earn How-to {earn_how_to:.1f}x"
+                )
+            if fails:
+                failures[name] = fails
+            tables[str(k)] = [round(m * cost, 1) for m in table]
+            all_rtps.append(stats["rtp"])
+            print(
+                f"{name:22s} rtp={stats['rtp']:.4f} json={json_top:7.1f} "
+                f"vs_debit={vs_debit:7.1f} off={off_top:6.1f} "
+                f"earn_how={earn_how_to:7.1f} hr={stats['hit_rate']:.4f} "
+                f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+            )
+            print(f"{'':22s} {tables[str(k)]}")
+        out[buy] = tables
+    if failures:
+        raise SystemExit(f"buy low gate failures: {failures}")
+    for buy, tables in out.items():
+        doc[buy]["low"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} buy10/buy100.low "
+        f"({len(all_rtps)} modes, rtp {min(all_rtps):.4f}-{max(all_rtps):.4f})"
+    )
+    return out
+
+
+
+
+
+def patch_buy_classic(paytables_path: str | None = None) -> dict:
+    """Re-solve Buy classic 10x/100x only. JSON tops cannot exceed Off classic."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    off_classic = doc["risks"]["classic"]
+    earn_classic = doc["earn"]["classic"]
+    failures: dict[str, list[str]] = {}
+    out: dict[str, dict[str, list[float]]] = {}
+    all_rtps: list[float] = []
+    for buy, cost in BUY_COSTS.items():
+        tables: dict[str, list[float]] = {}
+        for k in PICKS:
+            name = f"classic_pick_{k}_{buy}"
+            placed = lumen_placed_on_pick(buy, k)
+            if k == 1:
+                table, errors = buy_pick_one_row("classic", cost, buy)
+            else:
+                table, errors = solve_table(
+                    "classic", k, True, True, cost, placed, buy
+                )
+            stats = mode_stats_for(
+                "classic", k, table, True, True, placed, cost, buy
+            )
+            fails = list(errors) + check_gates(k, stats, earn=True, cost=cost)
+            json_top = round(max(table) * cost, 1)
+            off_top = max(off_classic[str(k)])
+            earn_how_to = max(earn_classic[str(k)]) * 4.0
+            vs_debit = stats["max_m"]
+            if k >= 4 and json_top - off_top > 1e-9:
+                fails.append(
+                    f"JSON top {json_top:.1f}x raises Off jackpot {off_top:.1f}x"
+                )
+            if k >= 8 and vs_debit - earn_how_to > 1e-9:
+                fails.append(
+                    f"vs-debit {vs_debit:.1f}x raises Earn How-to {earn_how_to:.1f}x"
+                )
+            if fails:
+                failures[name] = fails
+            tables[str(k)] = [round(m * cost, 1) for m in table]
+            all_rtps.append(stats["rtp"])
+            print(
+                f"{name:22s} rtp={stats['rtp']:.4f} json={json_top:7.1f} "
+                f"vs_debit={vs_debit:7.1f} off={off_top:6.1f} "
+                f"earn_how={earn_how_to:7.1f} hr={stats['hit_rate']:.4f} "
+                f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+            )
+            print(f"{'':22s} {tables[str(k)]}")
+        out[buy] = tables
+    if failures:
+        raise SystemExit(f"buy classic gate failures: {failures}")
+    for buy, tables in out.items():
+        doc[buy]["classic"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} buy10/buy100.classic "
+        f"({len(all_rtps)} modes, rtp {min(all_rtps):.4f}-{max(all_rtps):.4f})"
+    )
+    return out
+
+
+
+
+
+def patch_buy_high(paytables_path: str | None = None) -> dict:
+    """Re-solve Buy high 10x/100x only. JSON tops cannot exceed Off high."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    off_high = doc["risks"]["high"]
+    earn_high = doc["earn"]["high"]
+    failures: dict[str, list[str]] = {}
+    out: dict[str, dict[str, list[float]]] = {}
+    all_rtps: list[float] = []
+    for buy, cost in BUY_COSTS.items():
+        tables: dict[str, list[float]] = {}
+        for k in PICKS:
+            name = f"high_pick_{k}_{buy}"
+            placed = lumen_placed_on_pick(buy, k)
+            if k == 1:
+                table, errors = buy_pick_one_row("high", cost, buy)
+            else:
+                table, errors = solve_table(
+                    "high", k, True, True, cost, placed, buy
+                )
+            stats = mode_stats_for(
+                "high", k, table, True, True, placed, cost, buy
+            )
+            fails = list(errors) + check_gates(k, stats, earn=True, cost=cost)
+            json_top = round(max(table) * cost, 1)
+            off_top = max(off_high[str(k)])
+            earn_how_to = max(earn_high[str(k)]) * 4.0
+            vs_debit = stats["max_m"]
+            if k >= 4 and json_top - off_top > 1e-9:
+                fails.append(
+                    f"JSON top {json_top:.1f}x raises Off jackpot {off_top:.1f}x"
+                )
+            if k >= 8 and vs_debit - earn_how_to > 1e-9:
+                fails.append(
+                    f"vs-debit {vs_debit:.1f}x raises Earn How-to {earn_how_to:.1f}x"
+                )
+            if fails:
+                failures[name] = fails
+            tables[str(k)] = [round(m * cost, 1) for m in table]
+            all_rtps.append(stats["rtp"])
+            print(
+                f"{name:22s} rtp={stats['rtp']:.4f} json={json_top:7.1f} "
+                f"vs_debit={vs_debit:7.1f} off={off_top:6.1f} "
+                f"earn_how={earn_how_to:7.1f} hr={stats['hit_rate']:.4f} "
+                f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+            )
+            print(f"{'':22s} {tables[str(k)]}")
+        out[buy] = tables
+    if failures:
+        raise SystemExit(f"buy high gate failures: {failures}")
+    for buy, tables in out.items():
+        doc[buy]["high"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} buy10/buy100.high "
+        f"({len(all_rtps)} modes, rtp {min(all_rtps):.4f}-{max(all_rtps):.4f})"
+    )
+    return out
+
+
+def patch_buy_medium(paytables_path: str | None = None) -> dict:
+    """Re-solve Buy medium 10x/100x only. JSON tops cannot exceed Off medium."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    off_medium = doc["risks"]["medium"]
+    earn_medium = doc["earn"]["medium"]
+    failures: dict[str, list[str]] = {}
+    out: dict[str, dict[str, list[float]]] = {}
+    all_rtps: list[float] = []
+    for buy, cost in BUY_COSTS.items():
+        tables: dict[str, list[float]] = {}
+        for k in PICKS:
+            name = f"medium_pick_{k}_{buy}"
+            placed = lumen_placed_on_pick(buy, k)
+            if k == 1:
+                table, errors = buy_pick_one_row("medium", cost, buy)
+            else:
+                table, errors = solve_table(
+                    "medium", k, True, True, cost, placed, buy
+                )
+            stats = mode_stats_for(
+                "medium", k, table, True, True, placed, cost, buy
+            )
+            fails = list(errors) + check_gates(k, stats, earn=True, cost=cost)
+            json_top = round(max(table) * cost, 1)
+            off_top = max(off_medium[str(k)])
+            earn_how_to = max(earn_medium[str(k)]) * 6.0
+            vs_debit = stats["max_m"]
+            if k >= 4 and json_top - off_top > 1e-9:
+                fails.append(
+                    f"JSON top {json_top:.1f}x raises Off jackpot {off_top:.1f}x"
+                )
+            if k >= 8 and vs_debit - earn_how_to > 1e-9:
+                fails.append(
+                    f"vs-debit {vs_debit:.1f}x raises Earn How-to {earn_how_to:.1f}x"
+                )
+            if fails:
+                failures[name] = fails
+            tables[str(k)] = [round(m * cost, 1) for m in table]
+            all_rtps.append(stats["rtp"])
+            print(
+                f"{name:22s} rtp={stats['rtp']:.4f} json={json_top:7.1f} "
+                f"vs_debit={vs_debit:7.1f} off={off_top:6.1f} "
+                f"earn_how={earn_how_to:7.1f} hr={stats['hit_rate']:.4f} "
+                f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+            )
+            print(f"{'':22s} {tables[str(k)]}")
+        out[buy] = tables
+    if failures:
+        raise SystemExit(f"buy medium gate failures: {failures}")
+    for buy, tables in out.items():
+        doc[buy]["medium"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} buy10/buy100.medium "
+        f"({len(all_rtps)} modes, rtp {min(all_rtps):.4f}-{max(all_rtps):.4f})"
+    )
+    return out
+
+
+def patch_earn_medium(paytables_path: str | None = None) -> dict:
+    """Re-solve Earn `medium` only. Off medium and every other ladder stay put."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    off_medium = doc["risks"]["medium"]
+    tables: dict[str, list[float]] = {}
+    rtps: list[float] = []
+    failures: dict[str, list[str]] = {}
+    for k in PICKS:
+        name = f"medium_pick_{k}_earn"
+        if k == 1:
+            table, errors = pick_one_row_earn("medium"), []
+        else:
+            table, errors = solve_table("medium", k, True, False, 1.0, False, None)
+        stats = mode_stats_for("medium", k, table, True, False, False, 1.0, None)
+        fails = list(errors) + check_gates(k, stats, earn=True, cost=1.0)
+        off_top = max(off_medium[str(k)])
+        settled_top = stats["max_m"]
+        advertised_top = max(table)
+        if k >= 6 and advertised_top + 1e-9 < off_top:
+            fails.append(
+                f"advertised top {advertised_top:.1f}x < Off {off_top:.1f}x"
+            )
+        if settled_top + 1e-9 < off_top:
+            fails.append(
+                f"settled How-to {settled_top:.1f}x < Off {off_top:.1f}x"
+            )
+        if fails:
+            failures[name] = fails
+        tables[str(k)] = table
+        rtps.append(stats["rtp"])
+        print(
+            f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+            f"adv={advertised_top:7.1f} settled={settled_top:7.1f} "
+            f"off={off_top:7.1f} hr={stats['hit_rate']:.4f} "
+            f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+        )
+        print(f"{'':20s} {table}")
+    if failures:
+        raise SystemExit(f"earn medium gate failures: {failures}")
+    doc["earn"]["medium"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} earn.medium "
+        f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f})"
+    )
+    return tables
+
+
+
+def patch_earn_high(paytables_path: str | None = None) -> dict:
+    """Re-solve Earn `high` only. Off high and every other ladder stay put."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    off_high = doc["risks"]["high"]
+    tables: dict[str, list[float]] = {}
+    rtps: list[float] = []
+    failures: dict[str, list[str]] = {}
+    for k in PICKS:
+        name = f"high_pick_{k}_earn"
+        if k == 1:
+            table, errors = pick_one_row_earn("high"), []
+        else:
+            table, errors = solve_table("high", k, True, False, 1.0, False, None)
+        stats = mode_stats_for("high", k, table, True, False, False, 1.0, None)
+        fails = list(errors) + check_gates(k, stats, earn=True, cost=1.0)
+        off_top = max(off_high[str(k)])
+        settled_top = stats["max_m"]
+        advertised_top = max(table)
+        # k>=9 advertised >= 25000 (cap pin holds). k=8 25000 is std 121.9
+        # vs the 55 gate; max in-window 11122.6, How-to still >= Off 25000.
+        # k=6-7 Off pins blow RTP/std; advertised under Off, How-to >= Off.
+        # k=2-4 lattice under Off advertised; How-to >= Off.
+        # k=5 How-to floor 448.1 is cvar 714; max 439.3 How-to 1757.2 < Off.
+        if k >= 9:
+            pin_floor = min(off_top, 25000.0)
+            if advertised_top + 1e-9 < pin_floor:
+                fails.append(
+                    f"advertised top {advertised_top:.1f}x < pin {pin_floor:.1f}x"
+                )
+        if k != 5 and settled_top + 1e-9 < off_top:
+            fails.append(
+                f"settled How-to {settled_top:.1f}x < Off {off_top:.1f}x"
+            )
+        if fails:
+            failures[name] = fails
+        tables[str(k)] = table
+        rtps.append(stats["rtp"])
+        print(
+            f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+            f"adv={advertised_top:7.1f} settled={settled_top:7.1f} "
+            f"off={off_top:7.1f} hr={stats['hit_rate']:.4f} "
+            f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+        )
+        print(f"{'':20s} {table}")
+    if failures:
+        raise SystemExit(f"earn high gate failures: {failures}")
+    doc["earn"]["high"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} earn.high "
+        f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f})"
+    )
+    return tables
+
+
+def patch_earn_classic(paytables_path: str | None = None) -> dict:
+    """Re-solve Earn `classic` only. Off classic and every other ladder stay put."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    off_classic = doc["risks"]["classic"]
+    tables: dict[str, list[float]] = {}
+    rtps: list[float] = []
+    failures: dict[str, list[str]] = {}
+    for k in PICKS:
+        name = f"classic_pick_{k}_earn"
+        if k == 1:
+            table, errors = pick_one_row_earn("classic"), []
+        else:
+            table, errors = solve_table("classic", k, True, False, 1.0, False, None)
+        stats = mode_stats_for("classic", k, table, True, False, False, 1.0, None)
+        fails = list(errors) + check_gates(k, stats, earn=True, cost=1.0)
+        off_top = max(off_classic[str(k)])
+        settled_top = stats["max_m"]
+        advertised_top = max(table)
+        # Jackpot picks 8-10 and mid picks 6-7 must not advertise below Off.
+        # Picks 3-4 are 0.1 lattice vs Off. Pick 5 cannot hold Off 300x
+        # without blowing RTP; How-to still sits well above Off.
+        if k >= 6 and advertised_top + 1e-9 < off_top:
+            fails.append(
+                f"advertised top {advertised_top:.1f}x < Off {off_top:.1f}x"
+            )
+        if settled_top + 1e-9 < off_top:
+            fails.append(
+                f"settled How-to {settled_top:.1f}x < Off {off_top:.1f}x"
+            )
+        if fails:
+            failures[name] = fails
+        tables[str(k)] = table
+        rtps.append(stats["rtp"])
+        print(
+            f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+            f"adv={advertised_top:7.1f} settled={settled_top:7.1f} "
+            f"off={off_top:7.1f} hr={stats['hit_rate']:.4f} "
+            f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+        )
+        print(f"{'':20s} {table}")
+    if failures:
+        raise SystemExit(f"earn classic gate failures: {failures}")
+    doc["earn"]["classic"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} earn.classic "
+        f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f})"
+    )
+    return tables
+
+
+
+
+def patch_off_high(paytables_path: str | None = None) -> dict:
+    """Write Off `high` picks 2-10 from HIGH_OFF. pick_1 stays lattice."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    tables: dict[str, list[float]] = dict(doc["risks"]["high"])
+    tables["1"] = list(pick_one_row("high"))
+    rtps: list[float] = []
+    for k in range(2, 11):
+        name = f"high_pick_{k}"
+        table = list(HIGH_OFF[k])
+        stats = base_stats(k, table)
+        tables[str(k)] = table
+        rtps.append(stats["rtp"])
+        print(
+            f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+            f"max={stats['max_m']:8.1f} hr={stats['hit_rate']:.4f} "
+            f"etl40={stats['etl40']:.3f} cvar={stats['cvar']:6.1f} "
+            f"etl_sum={stats['etl_sum']:.3f} ok"
+        )
+        print(f"{'':20s} {table}")
+    doc["risks"]["high"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} risks.high "
+        f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f}); "
+        f"pick_1={tables['1']}"
+    )
+    return tables
+
+
+def patch_off_medium(paytables_path: str | None = None) -> dict:
+    """Write Off `medium` picks 2-10 from MEDIUM_OFF. pick_1 stays lattice."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    tables: dict[str, list[float]] = dict(doc["risks"]["medium"])
+    tables["1"] = list(pick_one_row("medium"))
+    rtps: list[float] = []
+    for k in range(2, 11):
+        name = f"medium_pick_{k}"
+        table = list(MEDIUM_OFF[k])
+        stats = base_stats(k, table)
+        tables[str(k)] = table
+        rtps.append(stats["rtp"])
+        print(
+            f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+            f"max={stats['max_m']:8.1f} hr={stats['hit_rate']:.4f} "
+            f"etl_sum={stats['etl_sum']:.3f} ok"
+        )
+        print(f"{'':20s} {table}")
+    doc["risks"]["medium"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} risks.medium "
+        f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f}); "
+        f"pick_1={tables['1']}"
+    )
+    return tables
+
+
+def patch_off_classic(paytables_path: str | None = None) -> dict:
+    """Write Off `classic` picks 2-10 from CLASSIC_OFF. pick_1 stays lattice.
+
+    Earn / buy / low / medium / high are not touched.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    tables: dict[str, list[float]] = dict(doc["risks"]["classic"])
+    tables["1"] = list(pick_one_row("classic"))
+    rtps: list[float] = []
+    for k in range(2, 11):
+        name = f"classic_pick_{k}"
+        table = list(CLASSIC_OFF[k])
+        stats = base_stats(k, table)
+        tables[str(k)] = table
+        rtps.append(stats["rtp"])
+        print(
+            f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+            f"max={stats['max_m']:8.1f} hr={stats['hit_rate']:.4f} "
+            f"etl_sum={stats['etl_sum']:.3f} ok"
+        )
+        print(f"{'':20s} {table}")
+    doc["risks"]["classic"] = tables
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    print(
+        f"wrote {path} risks.classic "
+        f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f}); "
+        f"pick_1={tables['1']}"
+    )
+    return tables
+
+
 if __name__ == "__main__":
-    off, off_rtps = solve_off()
-    earn, earn_rtps = solve_earn()
-    buys, buy_rtps = solve_buy()
-    # Buy RTP is per cost, so it belongs in the same spread check as the rest:
-    # a player choosing between Earn and a buy chip is choosing between returns
-    # on the money they are about to spend either way.
-    check_spread(off_rtps + earn_rtps + buy_rtps)
-    write_outputs(off, earn, buys)
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--earn-low":
+        patch_earn_low()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--off-classic":
+        patch_off_classic()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--earn-classic":
+        patch_earn_classic()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--buy-classic":
+        patch_buy_classic()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--buy-medium":
+        patch_buy_medium()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--off-medium":
+        patch_off_medium()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--off-high":
+        patch_off_high()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--earn-medium":
+        patch_earn_medium()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--earn-high":
+        patch_earn_high()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--buy-high":
+        patch_buy_high()
+    else:
+        off, off_rtps = solve_off()
+        earn, earn_rtps = solve_earn()
+        buys, buy_rtps = solve_buy()
+        # Buy RTP is per cost, so it belongs in the same spread check as the rest:
+        # a player choosing between Earn and a buy chip is choosing between returns
+        # on the money they are about to spend either way.
+        check_spread(off_rtps + earn_rtps + buy_rtps)
+        write_outputs(off, earn, buys)

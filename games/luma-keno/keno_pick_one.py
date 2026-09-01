@@ -141,8 +141,8 @@ EXTRA_CHANCE_PCT = {
 PULSE_BOOST = {
     "classic": 2.0,
     "low": 2.0,
-    "medium": 3.0,
-    "high": 2.0,
+    "medium": 3.0,  # only risk above x2; Off 5000 x6 How-to = 30000 under 100k
+    "high": 2.0,    # not x5: Off 50000 x2 x5 How-to = 500000 over the 100k cap
 }
 PULSE_CHANCE_PCT = 10
 # high was 5.0, which put 69-74% of the return on picks 5-10 into a channel that

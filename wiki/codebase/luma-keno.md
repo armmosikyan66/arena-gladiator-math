@@ -407,7 +407,7 @@ or drop it. Off fattens hits 5–9; 10/10 can stay 50,000×.
 | --- | --- |
 | `keno_pick_one.py` | Off + Earn + buy pick_1 lattices; lumen/extra criteria; `lumen_pay` |
 | `easy_off_low.py` | Designed Off `low` chart (Keno Xtreme Easy HUD copy, picks 2–10); validates at import |
-| `solve_paytables.py` | `solve_off` / `solve_earn` / `solve_buy`; cap ladder incl. `MAX_PAYOUT_ABS` and `TOP_OVERRIDE`; `check_gates` |
+| `solve_paytables.py` | `solve_off` / `solve_earn` / `solve_buy`; cap ladder incl. `MAX_PAYOUT_ABS` and `TOP_OVERRIDE`; `JACKPOT_TOP` pins picks 4–10 (Off/Earn 4–8 via `jackpot_applies`); Off `low` bypasses this via `easy_off_low.py`; `check_gates` |
 | `paytables.json` | `risks` (Off) + `earn` + `buy10` + `buy100` + `solved` (which sections this solve owns) |
 | `run.py` / `export_luts.py` | 160-mode books; Off hypergeometric; Earn/buy lumen×extra weights; extra-gated `pulseRolled`; writes the client's `src/data/keno-books.json` |
 | `utils/rgs_verification.py` | vendored; local gate mirror. `max_win` added to `mode_limits` 2026-08-28 |

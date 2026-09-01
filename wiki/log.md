@@ -86,6 +86,44 @@ Parseable audit trail. Newest entries at the top.
   paytables.json Off low is still the solver table (400× tops) — flagged,
   not resolved.
 
+## [2026-08-31] fix | JACKPOT_TOP picks 7–8 redistributed — plateaus removed
+
+- summary: wiki/analyses/headline-jackpot-ladder.md
+- touched: games/luma-keno/solve_paytables.py, paytables.json,
+  wiki/codebase/luma-keno.md, wiki/analyses/headline-jackpot-ladder.md,
+  wiki/index.md
+- notes: The pin pass below reused `RISK_SHAPES[risk]["top"]` for consecutive
+  picks and shipped flat runs — low 400× at picks 6/7/8, classic 800× at 6/7/8,
+  medium 2,500× at 7/8, high 5,000× at 7/8. An 8-of-8 (1 in 1,708,993) paid what
+  a 6-of-6 (1 in 18,278) paid, **94× rarer for the same prize**, and left most of
+  the envelope unused (low pick 8 was pinned at 400× where 7,218× was available).
+  `cap_for` returns the pin directly at `h == k`, so `RISK_SHAPES` was never
+  constraining it — 400× was just the nearby number, i.e. pinned to a cap instead
+  of designed as a curve.
+  Re-probed the std-18.3 envelope per mode (max pin: low 324/935/2471/6105/7218,
+  classic 382/934/2464/5924/14703, medium 382/912/2361/6689/17974, high
+  366/907/2290/5607/**6122** for picks 4–8). Two structural facts now documented:
+  the envelope is nearly risk-independent at picks 4–6 because the std cap binds
+  on the top row and p(h==k) is risk-invariant (so `low` must sit far under its own
+  ceiling for the risk dial to mean anything); and it stops growing for `high` at
+  pick 8 (1.09×), which via risk ordering caps every risk there and compresses the
+  risk spread from 7× at pick 4 to 3× at pick 8.
+  New rule: largest round value under the envelope that keeps the top strictly
+  increasing in k and ordered across risk. Picks 7/8 now low 1,000/2,000, classic
+  2,000/3,500, medium 3,000/5,000, high 5,000/6,000. Growth is 2–3× through the
+  mid ladder, 4–5× into 9–10, against rarity growth of 6×→31×. Remaining soft spot
+  is high 7→8 at 1.20×, forced by the 6,122× ceiling; smoothing it would mean
+  cutting high pick 7 from 5,000× to 4,000×, so it is kept and recorded.
+  Added `_assert_jackpot_ladder_distributed()` — runs at import, raises on a
+  non-increasing step in k or a risk inversion, naming both offending entries.
+  14 of 160 modes moved (picks 7–8 only, Off + Earn; buy chips untouched).
+  **Zero** frequency changes anywhere: hit, win, LDW, push, zero, pTop, oneIn all
+  identical. Mean SD 5.10 → 5.19; `high_pick_8` 17.99 → 18.29 (under the 18.3
+  line); worst mode still `high_pick_10_earn` at 18.74. RTP 0.9630–0.9664, spread
+  0.0034 / 0.005, 0 gate failures.
+
+
+
 ## [2026-08-31] feat | Buy 10× / 100× Lumen catch is guaranteed
 
 - summary: wiki/codebase/luma-keno.md
