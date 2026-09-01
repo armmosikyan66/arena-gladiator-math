@@ -1,4 +1,4 @@
-"""Regenerate Off pick_1 books/LUTs only (2 outcomes, 0.5× / 2.3×)."""
+"""Regenerate Off pick_1 books/LUTs only (advertised pair + miss-bonus tier)."""
 
 from game_config import GameConfig
 from gamestate import GameState

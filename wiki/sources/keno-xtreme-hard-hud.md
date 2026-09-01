@@ -1,7 +1,7 @@
 ---
 type: source
 tags: [keno, external-game, stake, paytable, hard, degen]
-updated: 2026-09-01
+updated: 2026-09-02
 source: Keno Xtreme Hard HUD screenshots (2026-09-01)
 ---
 
@@ -217,16 +217,22 @@ Picks **2–6 are player-favor** on this HUD. Pick 3’s **500×** alone is
 
 ## luma-keno mapping
 
-Skill `keno-math` **High (Degen analogue)**:
+Skill `keno-math` **High (Degen analogue)**: copy **HUD zeros**, fill the
+body with the classic geometric ladder onto 0.9650 (`easy_off_high.py`).
+Shipped 2026-09-02 — see [[codebase/luma-keno]] and [[domain/keno-xtreme-hard]].
 
-- Pick 10 HUD is the Degen row. Off pick_10 snap **0.1 / 0.3 / 13.0 / 35.3 /
-  137.8 / 808.3 / 7847.9 / 50000** — hits 5–9 fatter; 10/10 ties 50,000×.
-- Off/Earn pick_8+ still pay from **3 hits at 0.1×**.
-- Pick 1 HUD `0/4` is even money; Off pick_1 stays unpublished.
-
-> ⚠️ Contradicts [[codebase/luma-keno]] shipped Off `high`:
-> `paytables.json["risks"]["high"]` is a solver table (pick_2 max **13.4×**,
-> pick_3 **64.8×**, pick_10 **4699.8×** not 50,000×). Not this HUD.
+- Pick 2 HUD **20**. 20 × P(2) = 1.15 RTP. Only **16.7** is in-window
+  (single-cell 2/2 jackpot).
+- Pick 3 HUD **500**. Do **not** ship 500×. Highest legal **71.6**
+  (etl40 0.870).
+- Pick 4 HUD **1000** → **382.4**. Pick 5 HUD **2500** → **2297.8**.
+- Picks 6–10 keep HUD tops. Pick 10 body is geometric
+  **0.2 / 1.2 / 6.7 / 40.2 / 240.3 / 1424.6 / 8436.9 / 50000**, not the
+  packed Degen 1.5 / 3 / 90 cliff. 10/10 stays 50,000×.
+- Off/Earn pick_8+ still pay from **3 hits**. Off first cells are 0.2×
+  (geometric), not a frozen 0.1×.
+- Pick 1 HUD `0/4` is even money; Off pick_1 stays the miss-bonus lattice
+  `[0.1, 3.5]`.
 
 ## Related
 

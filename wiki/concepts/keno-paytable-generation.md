@@ -1,16 +1,19 @@
 ---
 type: concept
 tags: [keno, paytable, rtp, geometric, lattice, luma-keno]
-updated: 2026-09-01
+updated: 2026-09-02
 ---
 
 # Keno paytable generation — multipliers, payout, RTP
 
 How luma-keno **builds** an Off multiplier row. Code of record:
 `math/games/luma-keno/easy_off_classic.py` (classic geometric),
+`easy_off_medium.py` (medium geometric), `easy_off_high.py` (high geometric),
 `easy_off_low.py` (low leftover-share), `keno_pick_one.py` (pick_1 lattice).
-Shipped numbers: [[domain/keno-xtreme-classic]], [[domain/keno-xtreme-easy]],
-[[codebase/luma-keno]]. Rating gates: [[domain/stake-rating-limits]].
+Shipped numbers: [[domain/keno-xtreme-classic]], [[domain/keno-xtreme-medium]],
+[[domain/keno-xtreme-hard]], [[domain/keno-xtreme-easy]],
+[[codebase/luma-keno]]. Rating gates:
+[[domain/stake-rating-limits]].
 Books/LUT units: [[domain/stake-engine-publish]].
 
 This page is the algorithm. Do not paste a new max into JSON by hand.
@@ -76,9 +79,12 @@ After snap, every Off row is graded by `base_stats` / `check_gates`:
 
 Fail closed. Change `M` or the zeros; never clamp after validation.
 
-## Algorithm A — max-anchored geometric (Off `classic`)
+## Algorithm A — max-anchored geometric (Off `classic`, `medium`, `high`)
 
-Used for classic picks **2–10**. Pick 1 is Algorithm C.
+Used for classic, medium, and high picks **2–10**. Pick 1 is Algorithm C.
+Code: `easy_off_classic.generate_classic_row`; medium/high pass their own
+HUD zeros and `MAX_LADDER`. A single paying cell (Hard pick 2) is legal:
+the max *is* the row.
 
 1. **Lock** `M = MAX_LADDER[k]`. Keep HUD zeros. First paying hit is `f`.
 2. **Shape.** Every paying cell grows by the **same factor** `r` toward the peak:
@@ -114,6 +120,30 @@ Pick 2 HUD max 5.00 has no in-window pair (1.7/5.0 = 0.9423, 1.8/5.0 =
 0.9808). Snap is **5.4**. Pick 3 is a two-cell row: only
 8.5 / 13 / 17.5 / 22 / 26.5 / 31 / 35.5 / 40 are legal; **17.5** is the
 smallest that still steps ~×3 off the hit-2 cell.
+
+Shipped medium max ladder (2026-09-02). HUD tops on picks 2–4 cannot ship
+(lattice / ETL40 / generator reject):
+
+```
+3.2 / 9.4 / 60.3 / 174.9 / 450 / 650 / 750 / 2500 / 4000 / 5000
+```
+
+HUD pick 3 **75×** is 115% RTP and ETL40 0.911. 65.8× is the absolute
+ETL40 ceiling (0.799); shipped **60.3** keeps margin. Pick 2 HUD 9.00
+has the same no-pair exception as classic 5.00 → **9.4**. Pick 4 HUD
+175.0 rejects; snap **174.9**.
+
+Shipped high max ladder (2026-09-02). HUD picks 2–5 cannot ship
+(RTP / ETL40 / generator reject). Picks 6–10 keep the HUD jackpots:
+
+```
+3.5 / 16.7 / 71.6 / 382.4 / 2297.8 / 6000 / 12500 / 25000 / 40000 / 50000
+```
+
+HUD pick 2 **20×** is 115% RTP; only **16.7** is in-window (single-cell
+2/2). Pick 3 **500×** is ~614% RTP; highest legal **71.6**. Pick 4
+**1000** → **382.4**. Pick 5 **2500** → **2297.8**. Geometric leftover-fill
+lets pick 6 keep **6000** (old remainder-pack cut it to 3484.6).
 
 ### Worked row — classic pick 6
 
@@ -164,50 +194,71 @@ This **does not** keep a constant step `r`. It copies the Easy HUD's
 this — remainder-pack pooled leftover into the 2nd-best cell (e.g.
 73 → 732 → 1000) and broke the progressive read.
 
-## Algorithm C — pick_1 two-outcome lattice
+## Algorithm C — pick_1 two-outcome lattice + miss-bonus close
 
-`P(hit) = 10/40 = 0.25`, `P(miss) = 0.75`. Two cells on the 0.1× grid:
+`P(hit) = 10/40 = 0.25`, `P(miss) = 0.75`. Advertised pair on the 0.1× grid:
 
 ```
-RTP = 0.75·m₀ + 0.25·m₁
+RTP_base = 0.75·m₀ + 0.25·m₁
 ```
 
-Reachable RTPs are multiples of **0.025**. Only **0.950** and **0.975**
-exist near target. 0.975 busts the 0.967 cap. Splitting miss weight so
-"1 in 5 misses pays +0.1×" to fake 0.965 is illegal.
+Reachable base RTPs are multiples of **0.025**. Only **0.950** and **0.975**
+exist near target. 0.975 busts the 0.967 cap. Dashboard Cross-Mode is
+**0.50pp and includes every published mode** — a 0.950 pick_1 reads as
+~1.50–1.62pp against the 0.965 fleet and fails certification.
 
-Shipped Off pick_1 (bonus-free):
+The 1.5pp gap is closed by a third miss tier (not by moving picks 2–10
+off 0.9650): 6 of 30 miss books pay `m₀ + 0.1` (1 in 5 misses). LUT RTP
+becomes 0.9650. Advertised row stays the two-cell pair.
 
-| risk | row | RTP | edge |
+| risk | advertised | bonus miss | LUT RTP |
 | --- | --- | ---: | ---: |
-| classic | `[0.4, 2.6]` | 0.950 | 5.00% |
-| low | `[0.5, 2.3]` | 0.950 | 5.00% |
+| classic | `[0.4, 2.6]` | 0.5× | 0.9650 |
+| low | `[0.5, 2.3]` | 0.6× | 0.9650 |
+| medium | `[0.2, 3.2]` | 0.3× | 0.9650 |
+| high | `[0.1, 3.5]` | 0.2× | 0.9650 |
 
-Those two modes are excluded from the 0.50pp Cross-Mode pool (RTP < 0.96).
-medium/high Off pick_1 still carry a documented +0.1 miss-bonus third
-tier so *those* two modes can sit on 0.9650. Earn pick_1 prices Lumen +
-Pulse in and uses a different pair (`classic` `[0.5, 2.1]` → 0.9630).
+Earn pick_1 prices Lumen + Pulse in and uses a different pair
+(`classic` `[0.5, 2.1]` → 0.9630).
+
+## Volatility is derived, not solved
+
+Dashboard LOW / MEDIUM / HIGH / EXTREME is **base stddev**, not max.
+A top cell contributes `P(k)·(M − RTP)²` to variance. `P(k)` falls
+~15× per pick while `M` rises, so that product **peaks mid-ladder**
+(high pick 5–6) and is ~0 at pick 10.
+
+Once zeros, max, and RTP 0.9650 are locked, the geometric body is
+unique. High pick 10 at 50,000× still rates MEDIUM (std ~11): the
+jackpot has **no part** in the variance (top share ~2.5%). Body nudges
+move std by <0.1. Extra zeros (first pay h=5) only reach std ~13.
+Do **not** retarget 96.5% or invent a second shape to chase a label —
+the label is the math. Low risk stays LOW (std 0.8–2.0) for the same
+reason: the HUD body is frequent and small.
 
 ## Earn and buy are not this generator
 
 Off has no Lumen/Pulse — the posted table **is** the wallet multiplier.
 Earn advertises a cheaper row so Lumen ×2 × Pulse ×2 can settle the
 How-to at or above Off. Buy JSON tops pin to `min(Off max, dashboard cap / (2·cost))`.
-Re-solve Earn/buy with `--earn-classic` / `--buy-classic` after an Off
-max cut; their gates are one-directional (must not sit *below* Off on
+Re-solve Earn/buy with `--earn-<risk>` / `--buy-<risk>` after an Off max
+cut; their gates are one-directional (must not sit *below* Off on
 jackpot picks, must not *raise* Off on buy JSON).
 
 ## How to change a max and republish
 
-1. Put the new `M` in `MAX_LADDER[k]` (`easy_off_classic.py`). Confirm
-   `generate_classic_row(k)` returns a row (else pick the next legal
-   lattice neighbor).
-2. Bake that row into `CLASSIC_OFF`. Import validates bake == generator.
-3. `python3 solve_paytables.py --off-classic` (math + web `risks.classic`).
-4. If Earn/buy should follow: update `CLASSIC_EARN_TOP`, then
-   `--earn-classic` and `--buy-classic`.
-5. `python3 run_classic.py` (or `run_off_classic.py`) for books/LUTs.
-6. `python3 export_chart.py risks classic` (and earn/buy10/buy100 if patched).
+1. Put the new `M` in `MAX_LADDER[k]` (`easy_off_classic.py` /
+   `easy_off_medium.py` / `easy_off_high.py`). Confirm
+   `generate_classic_row(k, hud, mx)` returns a row (else pick the next
+   legal lattice neighbor).
+2. Bake that row into `CLASSIC_OFF` / `MEDIUM_OFF` / `HIGH_OFF`. Import
+   validates bake == generator.
+3. `python3 solve_paytables.py --off-<risk>` (math + web `risks.<risk>`).
+4. If Earn/buy should follow: update `CLASSIC_EARN_TOP` /
+   `MEDIUM_EARN_TOP` / `HIGH_EARN_TOP`, then `--earn-<risk>` and
+   `--buy-<risk>`.
+5. `python3 run_classic.py` / `run_medium.py` / `run_high.py` for books/LUTs.
+6. `python3 export_chart.py risks <risk>` (and earn/buy10/buy100 if patched).
 7. `rgs_verification`, `npm run verify-front-math`, `npm run par-sheet`.
 
 Do not regenerate all 160 modes unless the change crosses risks.
@@ -215,8 +266,8 @@ Do not regenerate all 160 modes unless the change crosses risks.
 ## What this algorithm is not
 
 - Not the Rust optimizer. Weights stay exact `C(10,h)·C(30,k−h)`.
-- Not water-fill / remainder-pack (that is the unsolved medium/high Off
-  path, and the old classic body).
+- Not water-fill / remainder-pack (that is the old classic/medium/high
+  bodies before the geometric bake).
 - Not a Monte Carlo RTP. Keno RTP is a finite sum.
 - Not a client roll. `/wallet/play` samples a published book; the
   frontend only reconstructs a draw for the booked hit count.

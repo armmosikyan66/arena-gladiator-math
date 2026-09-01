@@ -1,7 +1,7 @@
 ---
 type: domain
 tags: [keno, paytable, classic, keno-xtreme]
-updated: 2026-09-01
+updated: 2026-09-02
 ---
 
 # Keno Xtreme Classic — picks and multipliers
@@ -73,12 +73,11 @@ Competitor HUD:
 | 0 | 0.50x |
 | 1 | 2.50x |
 
-Shipped Off `classic` pick_1 is a **fixed two-outcome** card: **0.40× / 2.60×**,
-RTP **0.950** (`0.75×0.4 + 0.25×2.6`). A two-outcome 0.1× lattice cannot reach
-0.965 (next point is 0.975, over the 0.967 cap). Splitting miss weight so
-"1 in 5 misses pays 0.5×" is illegal — one multiplier per hit. The 1.5pp gap
-to the 0.9650 fleet is a designed Cross-Mode exemption, same as Off `low`
-pick_1.
+Shipped Off `classic` pick_1 advertises **0.40× / 2.60×**. The two-outcome
+0.1× lattice cannot reach 0.965 (next point is 0.975, over the 0.967 cap).
+Dashboard Cross-Mode includes pick_1, so 6 of 30 miss books pay **0.5×**
+(1 in 5 misses). LUT RTP is **0.9650**. Picks 2–10 stay on the 0.9650
+geometric ladder.
 
 ## Pick 2
 

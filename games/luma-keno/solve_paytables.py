@@ -2,11 +2,11 @@
 """Solve luma-keno Earn paytables (Lumen + extras + Pulse priced into 0.950 RTP).
 
 Off tables in paytables.json["risks"] stay as the certified table-only
-chart, with two designed exceptions: Off `low` (Keno Xtreme Easy analogue,
-easy_off_low.py) and Off `classic` (Keno Xtreme Classic analogue,
-easy_off_classic.py) are HUD copies rather than water-fill solves. This
-script writes paytables.json["earn"] (and the Off charts) so every mode
-passes the same 3-Star gates.
+chart, with designed HUD-copy exceptions: Off `low` (Easy leftover-share,
+easy_off_low.py), Off `classic` / `medium` / `high` (max-anchored geometric,
+easy_off_classic.py / easy_off_medium.py / easy_off_high.py). This script
+writes paytables.json["earn"] (and the Off charts) so every mode passes the
+same 3-Star gates.
 
 Publish gates (Stake Engine dashboard — binding, stricter than the local
 rgs_verification warnings):
@@ -107,7 +107,7 @@ CLASSIC_EARN_TOP = {
 # advertise Off pick-10 max 5000x so a full card settles 30000x.
 MEDIUM_EARN_TOP = {
     3: 39.3,    # Off 60.3; 39.4 lands rtp 0.9663 over designed window
-    4: 110.0,   # Off 175; 110.1 lands rtp 0.9660 over designed window
+    4: 110.0,   # Off 174.9; 110.1 lands rtp 0.9660 over designed window
     5: 406.5,   # Off 450; 407.0 is cvar 700.8 over the 700 gate
     6: 650.0,
     7: 750.0,
@@ -125,8 +125,8 @@ HIGH_EARN_TOP = {
     2: 11.9,      # Off 16.7 blows RTP; max in-window. How-to 47.6 >= Off
     3: 35.1,      # Off 71.6 blows RTP/hit/etl; How-to 140.4 >= Off
     4: 122.5,     # Off 382.4 blows etl40; How-to 490 >= Off
-    5: 439.3,     # Off 1792.4; How-to floor 448.1 is cvar 714. How-to 1757.2 < Off
-    6: 2028.7,    # Off 3484.6 blows RTP/std; How-to 8114.8 >= Off
+    5: 439.3,     # Off 2297.8; How-to floor 448.1 is cvar 714. How-to 1757.2 < Off
+    6: 2028.7,    # Off 6000 blows RTP/std; How-to 8114.8 >= Off
     7: 4582.0,    # Off 12500 blows etl_sum/std; How-to 18328 >= Off
     8: 11122.6,   # Off/cap 25000 is std 121.9; max std<=55. How-to 44490 >= Off
     9: 25000.0,   # Off 40000; advertised under Off, How-to 100000 above
@@ -1533,9 +1533,10 @@ def check_gates(
 ) -> list[str]:
     f: list[str] = []
     lo, hi = MODE_RTP_BAND
-    # Bonus-free Off pick_1 (low, classic) sits on the two-outcome 0.025
-    # lattice, whose only in-band-free point is 0.950. Exempt from the band
-    # and from Cross-Mode (0.50pp). Bonus risks must still land on target.
+    # Off pick_1 advertised pair sits on the two-outcome 0.025 lattice
+    # (0.950). Risks without the miss-bonus third tier would be exempt
+    # from the band; every shipped risk now carries the bonus and must
+    # land on target (dashboard Cross-Mode includes pick_1).
     if k == 1 and not earn and risk is not None and not has_pick_one_bonus(risk):
         if abs(stats["rtp"] - PICK_ONE_BASE_RTP) > 1e-9:
             f.append(
@@ -1581,9 +1582,12 @@ def check_gates(
             f"max payout {stats['max_m'] * cost:.0f}x base bet > "
             f"{MAX_PAYOUT_ABS[cost]:.0f} (dashboard Max Payout Multiplier)"
         )
-    # k >= 2 needs at least two paying tiers.
+    # k >= 2 needs at least two paying tiers, except Off `high` pick 2:
+    # the Hard HUD pays only 2/2 (jackpot-or-bust). One advertised cell is
+    # the designed shape, not a degenerate table.
     if len(stats["nonzero_payouts"]) < 2:
-        f.append("fewer than 2 nonzero payouts")
+        if not (risk == "high" and k == 2 and not earn and cost == 1.0):
+            f.append("fewer than 2 nonzero payouts")
     return f
 
 
@@ -1825,9 +1829,8 @@ def write_outputs(off: dict, earn: dict, buys: dict) -> None:
         "picks": {"min": 1, "max": 10},
         "risks": off,
         "earn": earn,
-        # Off pick_1's third tier, on the risks that carry it (low/classic
-        # ship bonus-free). Both miss amounts are advertised, so the client
-        # needs the bonus pay and its odds, not just the row above.
+        # Off pick_1's third tier (every risk). Both miss amounts are
+        # advertised, so the client needs the bonus pay and its odds.
         "pick1Bonus": {
             "weight": PICK_ONE_BONUS_WEIGHT,
             "missWeight": MISS_WEIGHT,
@@ -2101,7 +2104,9 @@ def patch_buy_high(paytables_path: str | None = None) -> dict:
             stats = mode_stats_for(
                 "high", k, table, True, True, placed, cost, buy
             )
-            fails = list(errors) + check_gates(k, stats, earn=True, cost=cost, risk=risk)
+            fails = list(errors) + check_gates(
+                k, stats, earn=True, cost=cost, risk="high"
+            )
             json_top = round(max(table) * cost, 1)
             off_top = max(off_high[str(k)])
             earn_how_to = max(earn_high[str(k)]) * 4.0
@@ -2165,7 +2170,9 @@ def patch_buy_medium(paytables_path: str | None = None) -> dict:
             stats = mode_stats_for(
                 "medium", k, table, True, True, placed, cost, buy
             )
-            fails = list(errors) + check_gates(k, stats, earn=True, cost=cost, risk=risk)
+            fails = list(errors) + check_gates(
+                k, stats, earn=True, cost=cost, risk="medium"
+            )
             json_top = round(max(table) * cost, 1)
             off_top = max(off_medium[str(k)])
             earn_how_to = max(earn_medium[str(k)]) * 6.0
@@ -2221,7 +2228,9 @@ def patch_earn_medium(paytables_path: str | None = None) -> dict:
         else:
             table, errors = solve_table("medium", k, True, False, 1.0, False, None)
         stats = mode_stats_for("medium", k, table, True, False, False, 1.0, None)
-        fails = list(errors) + check_gates(k, stats, earn=True, cost=1.0, risk=risk)
+        fails = list(errors) + check_gates(
+            k, stats, earn=True, cost=1.0, risk="medium"
+        )
         off_top = max(off_medium[str(k)])
         settled_top = stats["max_m"]
         advertised_top = max(table)
@@ -2275,7 +2284,9 @@ def patch_earn_high(paytables_path: str | None = None) -> dict:
         else:
             table, errors = solve_table("high", k, True, False, 1.0, False, None)
         stats = mode_stats_for("high", k, table, True, False, False, 1.0, None)
-        fails = list(errors) + check_gates(k, stats, earn=True, cost=1.0, risk=risk)
+        fails = list(errors) + check_gates(
+            k, stats, earn=True, cost=1.0, risk="high"
+        )
         off_top = max(off_high[str(k)])
         settled_top = stats["max_m"]
         advertised_top = max(table)
@@ -2383,13 +2394,24 @@ def patch_earn_classic(paytables_path: str | None = None) -> dict:
 
 
 def patch_off_high(paytables_path: str | None = None) -> dict:
-    """Write Off `high` picks 2-10 from HIGH_OFF. pick_1 stays lattice."""
+    """Write Off `high` picks 2-10 from HIGH_OFF. pick_1 stays lattice.
+
+    Earn / buy / classic / low / medium are not touched. Also patches the
+    web `keno-paytables.json` so the HUD matches the math file.
+    """
     here = os.path.dirname(os.path.abspath(__file__))
     path = paytables_path or os.path.join(here, "paytables.json")
     with open(path, encoding="UTF-8") as handle:
         doc = json.load(handle)
     tables: dict[str, list[float]] = dict(doc["risks"]["high"])
     tables["1"] = list(pick_one_row("high"))
+    pick1_stats = base_stats(1, tables["1"], "high")
+    print(
+        f"{'high_pick_1':20s} rtp={pick1_stats['rtp']:.4f} "
+        f"std={pick1_stats['std']:6.2f} max={pick1_stats['max_m']:8.1f} "
+        f"hr={pick1_stats['hit_rate']:.4f} (lattice + miss-bonus third tier)"
+    )
+    print(f"{'':20s} {tables['1']}")
     rtps: list[float] = []
     for k in range(2, 11):
         name = f"high_pick_{k}"
@@ -2408,6 +2430,15 @@ def patch_off_high(paytables_path: str | None = None) -> dict:
     with open(path, "w", encoding="UTF-8") as handle:
         json.dump(doc, handle, indent=2)
         handle.write("\n")
+    web_path = resolve_web_file("keno-paytables.json", "KENO_WEB_PAYTABLES")
+    if os.path.isfile(web_path):
+        with open(web_path, encoding="UTF-8") as handle:
+            web = json.load(handle)
+        web["risks"]["high"] = tables
+        with open(web_path, "w", encoding="UTF-8") as handle:
+            json.dump(web, handle, indent=2)
+            handle.write("\n")
+        print(f"wrote {web_path} risks.high")
     print(
         f"wrote {path} risks.high "
         f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f}); "
@@ -2417,13 +2448,24 @@ def patch_off_high(paytables_path: str | None = None) -> dict:
 
 
 def patch_off_medium(paytables_path: str | None = None) -> dict:
-    """Write Off `medium` picks 2-10 from MEDIUM_OFF. pick_1 stays lattice."""
+    """Write Off `medium` picks 2-10 from MEDIUM_OFF. pick_1 stays lattice.
+
+    Earn / buy / classic / low / high are not touched. Also patches the
+    web `keno-paytables.json` so the HUD matches the math file.
+    """
     here = os.path.dirname(os.path.abspath(__file__))
     path = paytables_path or os.path.join(here, "paytables.json")
     with open(path, encoding="UTF-8") as handle:
         doc = json.load(handle)
     tables: dict[str, list[float]] = dict(doc["risks"]["medium"])
     tables["1"] = list(pick_one_row("medium"))
+    pick1_stats = base_stats(1, tables["1"], "medium")
+    print(
+        f"{'medium_pick_1':20s} rtp={pick1_stats['rtp']:.4f} "
+        f"std={pick1_stats['std']:6.2f} max={pick1_stats['max_m']:8.1f} "
+        f"hr={pick1_stats['hit_rate']:.4f} (lattice + miss-bonus third tier)"
+    )
+    print(f"{'':20s} {tables['1']}")
     rtps: list[float] = []
     for k in range(2, 11):
         name = f"medium_pick_{k}"
@@ -2434,13 +2476,22 @@ def patch_off_medium(paytables_path: str | None = None) -> dict:
         print(
             f"{name:20s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
             f"max={stats['max_m']:8.1f} hr={stats['hit_rate']:.4f} "
-            f"etl_sum={stats['etl_sum']:.3f} ok"
+            f"etl40={stats['etl40']:.3f} etl_sum={stats['etl_sum']:.3f} ok"
         )
         print(f"{'':20s} {table}")
     doc["risks"]["medium"] = tables
     with open(path, "w", encoding="UTF-8") as handle:
         json.dump(doc, handle, indent=2)
         handle.write("\n")
+    web_path = resolve_web_file("keno-paytables.json", "KENO_WEB_PAYTABLES")
+    if os.path.isfile(web_path):
+        with open(web_path, encoding="UTF-8") as handle:
+            web = json.load(handle)
+        web["risks"]["medium"] = tables
+        with open(web_path, "w", encoding="UTF-8") as handle:
+            json.dump(web, handle, indent=2)
+            handle.write("\n")
+        print(f"wrote {web_path} risks.medium")
     print(
         f"wrote {path} risks.medium "
         f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f}); "
@@ -2511,7 +2562,7 @@ def patch_off_classic(paytables_path: str | None = None) -> dict:
     print(
         f"{'classic_pick_1':20s} rtp={pick1_stats['rtp']:.4f} "
         f"std={pick1_stats['std']:6.2f} max={pick1_stats['max_m']:8.1f} "
-        f"hr={pick1_stats['hit_rate']:.4f} (two-outcome lattice, no miss bonus)"
+        f"hr={pick1_stats['hit_rate']:.4f} (lattice + 1-in-5 miss bonus)"
     )
     print(f"{'':20s} {tables['1']}")
     doc["pick1Bonus"] = {

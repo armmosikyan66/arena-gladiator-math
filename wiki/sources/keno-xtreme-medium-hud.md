@@ -1,7 +1,7 @@
 ---
 type: source
 tags: [keno, external-game, stake, paytable, medium]
-updated: 2026-09-01
+updated: 2026-09-02
 source: Keno Xtreme Medium HUD screenshots (2026-09-01)
 ---
 
@@ -227,19 +227,22 @@ Legal look-alikes: `1.10` (110), `1.20` (120), `7.50` (750), `0.50` (50).
 
 ## luma-keno mapping
 
-Skill `keno-math` **Medium (Crazy analogue)**: copy **shape + maxes except
-pick 3**, snap `0.95→1.0`, retarget body RTP.
+Skill `keno-math` **Medium (Crazy analogue)**: copy **HUD zeros + maxes**,
+fill the body with the classic geometric ladder onto 0.9650
+(`easy_off_medium.py`). Shipped 2026-09-02 — see [[codebase/luma-keno]]
+and [[domain/keno-xtreme-medium]].
 
-- Pick 2 HUD **0.95 / 9.00**. Max stays **9.00×**, not 9.3×. `0.95→1.0`.
-- Pick 3 HUD **1.75 / 75**. Do **not** ship 75×. Cap **65.8×** (ETL40).
-- Pick 10 HUD **0.50 / 0.95 / 1.50 / 3.00 / 9 / 40 / 400 / 5000**. Skill snap
-  **1.8 / 2.1 / 2.5 / 3.5 / 9 / 40 / 400 / 5000** (start at 4 so Earn
-  Lumen/Pulse do not settle a 0.5× 3-hit).
-- Earn/Buy still start paying at 4 hits for that reason.
+- Pick 2 HUD **0.95 / 9.00**. 9.00 has no in-window lattice pair. Snap
+  **1.1 / 9.4** (0.9654).
+- Pick 3 HUD **1.75 / 75**. Do **not** ship 75×. Absolute ETL40 ceiling is
+  **65.8×** (0.799). Shipped **60.3×** (etl40 0.732, body 1.7).
+- Pick 4 HUD **175.0** has no legal progressive row. Snap **174.9**.
+- Pick 10 keeps the HUD zero prefix (pays from 3 hits at 0.5×). Earn/Buy
+  still start at 4 so Lumen/Pulse do not settle a 0.5× 3-hit.
 
-> ⚠️ Contradicts [[codebase/luma-keno]] shipped Off `medium`:
-> `paytables.json["risks"]["medium"]` is a solver table (pick_2 max **3.4×**,
-> pick_3 **61.5×**, pick_10 **1500×**). Not this HUD.
+> ⚠️ Earlier skill text recommended a pick-10 body snap starting at 4 hits
+> (`1.8 / 2.1 / 2.5 / 3.5 / 9 / 40 / 400 / 5000`). Off now follows HUD
+> zeros instead; only Earn/buy keep the start-at-4 cut.
 
 ## Related
 

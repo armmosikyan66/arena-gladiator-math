@@ -2,6 +2,71 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-02] change | Off pick_1 miss-bonus restored (dashboard Cross-Mode)
+
+- summary: wiki/concepts/keno-paytable-generation.md, wiki/domain/keno-xtreme-classic.md
+- touched: games/luma-keno/keno_pick_one.py (`PICK_ONE_BONUS_RISKS` = all
+  four risks), games/luma-keno/solve_paytables.py, games/luma-keno/easy_off_classic.py,
+  games/luma-keno/run_off_pick_one.py, games/luma-keno/paytables.json,
+  library/ (classic/low pick_1 now 3 books), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/lib/keno/copy.ts,
+  web/scripts/verify-front-math.mjs, web/scripts/par-sheet.mjs,
+  wiki/concepts/keno-paytable-generation.md, wiki/domain/keno-xtreme-classic.md,
+  wiki/codebase/luma-keno.md, wiki/index.md, .cursor/skills/keno-math/SKILL.md
+- notes: Stake dashboard Cross-Mode includes classic_pick_1. Two-outcome
+  0.950 vs fleet 0.966 failed at 1.62pp (gate 0.50pp). Local exemption is
+  not binding. Restored Algorithm C miss-bonus on classic/low (medium/high
+  already had it). Advertised pairs unchanged; LUT RTP 0.9650. Picks 2–10
+  and 96.5% mid-range logic untouched. High pick 9–10 MEDIUM/HIGH labels
+  are derived std (50k top share ~2.5%) — not a generator miss; volatility
+  is not a fourth solve target once zeros/max/RTP are locked.
+  rgs_verification PASS; verify-front-math 160/160; par-sheet 0 hard
+  failures, certified RTP 0.963–0.96615, spread 0.315pp.
+
+## [2026-09-02] change | Off `high` geometric HUD copy shipped
+
+- summary: wiki/domain/keno-xtreme-hard.md, wiki/codebase/luma-keno.md
+- touched: games/luma-keno/easy_off_high.py (MAX_LADDER + HIGH_OFF
+  geometric bake; shape lock dropped), games/luma-keno/easy_off_classic.py
+  (single-paying-cell row for Hard pick 2), games/luma-keno/solve_paytables.py
+  (`--off-high` writes web; high pick 2 two-payout exemption; `risk=risk`
+  NameError on earn/buy high), games/luma-keno/run_high.py,
+  games/luma-keno/paytables.json, library/ (all high books/LUTs),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json, wiki/domain/keno-xtreme-hard.md,
+  wiki/codebase/luma-keno.md, wiki/concepts/keno-paytable-generation.md,
+  wiki/sources/keno-xtreme-hard-hud.md, wiki/index.md,
+  .cursor/skills/keno-math/SKILL.md
+- notes: Algorithm A applied to Off high. HUD zeros kept. Max ladder
+  3.5 / 16.7 / 71.6 / 382.4 / 2297.8 / 6000 / 12500 / 25000 / 40000 / 50000.
+  Picks 2–5 HUD tops are player-favor and cannot ship. Geometric leftover
+  lets pick 6 keep 6000 (old remainder-pack cut to 3484.6). Pick 10 stays
+  50000 with a ×5.6–6.0 body instead of the 1.5/3/90 cliff. Earn/buy
+  re-pinned. rgs_verification PASS; verify-front-math 160/160; par-sheet
+  0 hard failures, spread 0.315pp, min hitFreq 4.17% (high pick 4).
+
+## [2026-09-02] change | Off `medium` geometric HUD copy shipped
+
+- summary: wiki/domain/keno-xtreme-medium.md, wiki/codebase/luma-keno.md
+- touched: games/luma-keno/easy_off_medium.py (MAX_LADDER + MEDIUM_OFF
+  geometric bake; pick-10 shape lock dropped), games/luma-keno/easy_off_classic.py
+  (`generate_classic_row` accepts `mx`), games/luma-keno/solve_paytables.py
+  (`--off-medium` writes web; `risk=risk` NameError on earn/buy medium),
+  games/luma-keno/run_medium.py, games/luma-keno/paytables.json,
+  library/ (all medium books/LUTs), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json,
+  wiki/domain/keno-xtreme-medium.md, wiki/codebase/luma-keno.md,
+  wiki/concepts/keno-paytable-generation.md, wiki/sources/keno-xtreme-medium-hud.md,
+  wiki/index.md, .cursor/skills/keno-math/SKILL.md
+- notes: Algorithm A (max-anchored geometric onto 0.9650) applied to Off
+  medium. HUD zeros kept. Max ladder 3.2 / 9.4 / 60.3 / 174.9 / 450 / 650 /
+  750 / 2500 / 4000 / 5000. Pick 2 9.00 has no in-window pair (same class as
+  classic 5.0→5.4). Pick 3 HUD 75 is 115% RTP + ETL40 0.911; 60.3 keeps
+  margin (65.8 is the 0.80 ceiling). Pick 4 175.0 rejects; 174.9 ships.
+  Pick 10 body is a flat ×3.7 ladder (old 40/400/5000 cliff + shape lock
+  removed). Earn/buy re-pinned. rgs_verification PASS; verify-front-math
+  160/160; par-sheet 0 hard failures, spread 0.315pp.
+
 ## [2026-09-01] ingest | Keno paytable generation algorithm
 
 - summary: wiki/concepts/keno-paytable-generation.md

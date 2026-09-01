@@ -1,7 +1,7 @@
 ---
 type: codebase
 tags: [keno, luma-keno, rtp, publish, telemetry]
-updated: 2026-09-01
+updated: 2026-09-02
 ---
 
 # Luma Keno math
@@ -331,7 +331,7 @@ Keno Xtreme **Classic** (docx: Normal) is [[sources/keno-xtreme-classic-hud]]
 fills the body with a max-anchored geometric ladder onto 0.9650
 (`easy_off_classic.py`). HUD is **42.2–90.6% RTP** on picks 2–10 so leftover
 must rise. Tops: **2.6 / 5.4 / 17.5 / 30 / 75 / 200 / 600 / 750 / 900 / 1000**
-(pick_1 two-outcome lattice 0.4/2.6 at RTP 0.950, no miss-bonus third tier;
+(pick_1 advertised 0.4/2.6 plus 1-in-5 miss bonus at 0.5×, LUT RTP 0.9650;
 pick 2 HUD 5.00 has no in-window lattice point).
 
 Shipped Off `classic` (2026-09-01 geometric):
@@ -354,10 +354,15 @@ Earn `classic` and the buy chips keep their own ladders.
 ## Medium HUD vs Off `medium`
 
 Keno Xtreme **Medium** (docx: Crazy) is [[sources/keno-xtreme-medium-hud]]
-/ [[domain/keno-xtreme-medium]]. Jackpot-shaped. Pick 1 is even money
-`0.00/4.00`. Pick 3 HUD **75×** is **115% RTP** and fails ETL40 — Off must
-use **65.8×**, not 75. Snap `0.95→1.0`. Tops: **4 / 9.00 / 75 / 175 / 450 /
-650 / 750 / 2500 / 4000 / 5000** (pick 2 max is **9.00×**, not 9.3×).
+/ [[domain/keno-xtreme-medium]]. How the shipped multipliers are generated:
+[[concepts/keno-paytable-generation]] Algorithm A (same geometric ladder
+as classic). Jackpot-shaped. Competitor pick 1 is even money `0.00/4.00`;
+luma-keno pick_1 stays the miss-bonus lattice `[0.2, 3.2]`. Pick 3 HUD
+**75×** is **115% RTP** and fails ETL40 — Off ships **60.3×** (65.8× is
+the absolute 0.80 ceiling). Pick 2 HUD **9.00** has no in-window pair
+(snap **9.4**). Pick 4 HUD **175.0** rejects (snap **174.9**).
+
+Competitor HUD:
 
 | k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -372,19 +377,35 @@ use **65.8×**, not 75. Snap `0.95→1.0`. Tops: **4 / 9.00 / 75 / 175 / 450 /
 | **9** | 0.00 | 0.00 | 0.00 | 0.95 | 1.10 | 2.50 | 5.00 | 40.00 | 350.0 | 4000 |
 | **10** | 0.00 | 0.00 | 0.00 | 0.50 | 0.95 | 1.50 | 3.00 | 9.00 | 40.00 | 400.0 | 5000 |
 
-> ⚠️ Contradicts [[sources/keno-xtreme-medium-hud]]: shipped
-> `paytables.json["risks"]["medium"]` is still the solver table (pick_2 max
-> **3.4×**, pick_3 **61.5×**, pick_10 **1500×**). Off `medium` does not yet
-> copy this HUD.
+**Shipped 2026-09-02** (geometric, HUD zeros, max-anchored onto 0.9650):
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.20 | 3.20 | | | | | | | | | |
+| **2** | 0.00 | 1.10 | 9.40 | | | | | | | | |
+| **3** | 0.00 | 0.00 | 1.70 | 60.30 | | | | | | |
+| **4** | 0.00 | 0.00 | 0.70 | 10.50 | 174.9 | | | | | |
+| **5** | 0.00 | 0.00 | 0.30 | 3.90 | 41.80 | 450.0 | | | | |
+| **6** | 0.00 | 0.00 | 0.00 | 2.60 | 16.60 | 103.8 | 650.0 | | | |
+| **7** | 0.00 | 0.00 | 0.00 | 1.80 | 8.10 | 36.80 | 165.3 | 750.0 | | |
+| **8** | 0.00 | 0.00 | 0.00 | 0.90 | 4.40 | 21.50 | 104.5 | 512.4 | 2500 | |
+| **9** | 0.00 | 0.00 | 0.00 | 0.70 | 2.60 | 11.60 | 51.00 | 216.3 | 932.9 | 4000 |
+| **10** | 0.00 | 0.00 | 0.00 | 0.50 | 1.90 | 7.10 | 25.90 | 97.30 | 362.1 | 1343.3 | 5000 |
+
+Earn `medium` and the buy chips keep their own ladders.
 
 ## Hard HUD vs Off `high`
 
 Keno Xtreme **Hard** (docx: Degen) is [[sources/keno-xtreme-hard-hud]]
-/ [[domain/keno-xtreme-hard]]. Jackpot-or-bust. Pick 10 HUD **0.10 / 0.30 /
-0.50 / 1.50 / 3 / 90 / 4500 / 50000** matches keno-math Degen. Picks **2–6
-are player-favor** (pick 3 at 500× is ~614% RTP). Tops: **4 / 20 / 500 /
-1000 / 2500 / 6000 / 12500 / 25000 / 40000 / 50000**. Snap pick 6 `0.25→0.2`
-or drop it. Off fattens hits 5–9; 10/10 can stay 50,000×.
+/ [[domain/keno-xtreme-hard]]. How the shipped multipliers are generated:
+[[concepts/keno-paytable-generation]] Algorithm A (same geometric ladder
+as classic/medium). Jackpot-or-bust. Competitor pick 1 is even money
+`0.00/4.00`; luma-keno pick_1 stays the miss-bonus lattice `[0.1, 3.5]`.
+Picks **2–6 HUD tops are player-favor** (pick 3 at 500× is ~614% RTP) —
+Off ships the highest in-window / gate-legal max instead. Picks 6–10 keep
+the HUD jackpots; 10/10 stays **50,000×**.
+
+Competitor HUD:
 
 | k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -399,17 +420,30 @@ or drop it. Off fattens hits 5–9; 10/10 can stay 50,000×.
 | **9** | 0.00 | 0.00 | 0.00 | 0.10 | 0.30 | 0.50 | 5.00 | 40.00 | 3500 | 40000 |
 | **10** | 0.00 | 0.00 | 0.00 | 0.10 | 0.30 | 0.50 | 1.50 | 3.00 | 90.00 | 4500 | 50000 |
 
-> ⚠️ Contradicts [[sources/keno-xtreme-hard-hud]]: shipped
-> `paytables.json["risks"]["high"]` is still the solver table (pick_2 max
-> **13.4×**, pick_3 **64.8×**, pick_10 **4699.8×**). Off `high` does not yet
-> copy this HUD.
+**Shipped 2026-09-02** (geometric, HUD zeros, max-anchored onto 0.9650):
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.10 | 3.50 | | | | | | | | | |
+| **2** | 0.00 | 0.00 | 16.70 | | | | | | | | |
+| **3** | 0.00 | 0.00 | 0.70 | 71.60 | | | | | | |
+| **4** | 0.00 | 0.00 | 0.00 | 2.20 | 382.4 | | | | | |
+| **5** | 0.00 | 0.00 | 0.00 | 0.10 | 8.00 | 2297.8 | | | | |
+| **6** | 0.00 | 0.00 | 0.00 | 0.30 | 7.40 | 214.5 | 6000 | | | |
+| **7** | 0.00 | 0.00 | 0.00 | 0.30 | 4.10 | 59.80 | 865.6 | 12500 | | |
+| **8** | 0.00 | 0.00 | 0.00 | 0.20 | 2.50 | 23.70 | 242.6 | 2464.1 | 25000 | |
+| **9** | 0.00 | 0.00 | 0.00 | 0.20 | 1.60 | 11.70 | 90.80 | 690.2 | 5252.2 | 40000 |
+| **10** | 0.00 | 0.00 | 0.00 | 0.20 | 1.20 | 6.70 | 40.20 | 240.3 | 1424.6 | 8436.9 | 50000 |
+
+Earn `high` and the buy chips keep their own ladders.
 
 ## Files
 
 | Path | Owns |
 | --- | --- |
 | `keno_pick_one.py` | Off + Earn + buy pick_1 lattices; lumen/extra criteria; `lumen_pay` |
-| `easy_off_low.py` | Designed Off `low` chart (Keno Xtreme Easy HUD copy, picks 2–10); validates at import |
+| `easy_off_low.py` | Designed Off `low` chart (Keno Xtreme Easy leftover-share, picks 2–10); validates at import |
+| `easy_off_classic.py` / `easy_off_medium.py` / `easy_off_high.py` | Off geometric HUD copies (classic / medium / high); `generate_classic_row` is the shared solver |
 | `solve_paytables.py` | `solve_off` / `solve_earn` / `solve_buy`; cap ladder incl. `MAX_PAYOUT_ABS` and `TOP_OVERRIDE`; `JACKPOT_TOP` pins picks 4–10 (Off/Earn 4–8 via `jackpot_applies`); Off `low` bypasses this via `easy_off_low.py`; `check_gates` |
 | `paytables.json` | `risks` (Off) + `earn` + `buy10` + `buy100` + `solved` (which sections this solve owns) |
 | `run.py` / `export_luts.py` | 160-mode books; Off hypergeometric; Earn/buy lumen×extra weights; extra-gated `pulseRolled`; writes the client's `src/data/keno-books.json` |

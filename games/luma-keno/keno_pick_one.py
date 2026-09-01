@@ -3,22 +3,22 @@
 pick_1 is two advertised outcomes (miss 30/40, hit 10/40).
 Catching Lumen multiplies a paying hit, so the lattice is
 `0.75*miss + c_hit*hit = RTP_TARGET` with `c_hit > 0.25`. 0.975 busts
-`verify_mode_volatility` (0.967). Do not split miss weight.
+`verify_mode_volatility` (0.967).
 
-Dashboard Cross-Mode RTP is 0.50pp, so picks 2-10 share the same
-target after extras and Lumen are priced in.
+Dashboard Cross-Mode RTP is 0.50pp and includes pick_1, so every Off
+pick_1 risk keeps the miss-bonus third tier (6 of 30 misses pay +0.1).
 
-**Off pick_1 is two advertised outcomes — one miss, one hit.** Splitting
-miss weight to fake 0.965 is illegal (skill hard rule; a leftover 24+6
-split paid two different miss amounts for the same hit count). With two
+**Off pick_1 advertises two outcomes — one miss, one hit.** With two
 tiers the reachable RTPs are `0.75*m + 0.25*h`; both legs are multiples of
 0.1 (RGS `payout % 10 == 0`), so the lattice is `0.025*(3j + i)`. 0.950 is
 on it; 0.965 is not; the next point up is 0.975, over the 0.967 ceiling.
 
-`low` and `classic` therefore ship on the two-outcome ceiling **0.950**
-(`low` [0.5, 2.3], `classic` [0.4, 2.6]) and are exempt from the 0.50pp
-Cross-Mode spread. medium/high keep a third miss-bonus tier so those two
-Off pick_1 modes can still land on 0.9650.
+Dashboard Cross-Mode is 0.50pp and includes every published mode — a
+local exemption for 0.950 pick_1 reads as 1.50–1.62pp against the 0.965
+fleet and fails certification. The 1.5pp gap is closed by a third miss
+tier: 6 of 30 miss books pay `miss + 0.1` (1 in 5 misses). Advertised
+row stays the two-cell pair; LUT RTP becomes 0.9650. Picks 2–10 are
+untouched.
 """
 
 from __future__ import annotations
@@ -114,13 +114,11 @@ HIT_WEIGHT = 10
 # the remaining 1.5pp; see the module docstring for why a two-tier pick_1
 # cannot reach 0.9650 at all.
 #
-# Risk-scoped: `low` and `classic` are bonus-free (one multiplier per hit).
-# Their two-tier lattice ceiling is 0.950, so those Off pick_1 modes settle
-# there and are exempt from the Cross-Mode 0.50pp fleet check. medium/high
-# keep the +0.1 miss-bonus tier and stay on 0.9650.
+# Every Off pick_1 risk keeps the +0.1 miss-bonus tier. Dashboard
+# Cross-Mode includes pick_1; a 0.950 two-outcome card fails it by 1.5pp.
 PICK_ONE_BONUS = 0.1
 #: Risks whose Off pick_1 keeps the miss-bonus third tier.
-PICK_ONE_BONUS_RISKS = frozenset({"medium", "high"})
+PICK_ONE_BONUS_RISKS = frozenset(PICK_ONE_MISS)
 PICK_ONE_BONUS_WEIGHT = round(
     (RTP_TARGET - PICK_ONE_BASE_RTP) * (MISS_WEIGHT + HIT_WEIGHT) / PICK_ONE_BONUS
 )
@@ -935,29 +933,21 @@ assert all(
     abs(0.75 * miss + 0.25 * pick_one_hit(miss) - PICK_ONE_BASE_RTP) < 1e-9
     for miss in PICK_ONE_MISS.values()
 ), "Off pick_1 advertised pair left its 0.025 lattice"
-# Bonus risks close the 0.950 -> 0.9650 gap exactly; low/classic ship
-# bonus-free and settle on the two-tier lattice ceiling instead.
+# Every Off pick_1 risk closes 0.950 -> 0.9650 with the miss-bonus tier.
 assert all(
     abs(pick_one_rtp(risk) - RTP_TARGET) < 1e-9
     for risk in PICK_ONE_MISS
-    if has_pick_one_bonus(risk)
 ), "Off pick_1 bonus tier did not close the gap to target"
-assert all(
-    abs(pick_one_rtp(risk) - PICK_ONE_BASE_RTP) < 1e-9
-    for risk in PICK_ONE_MISS
-    if not has_pick_one_bonus(risk)
-), "bonus-free Off pick_1 left its two-outcome lattice"
 # base_stats grades Off through off_outcomes, so it must already see the third
 # tier — this is what check_gates reads.
 assert all(
     abs(base_stats(1, pick_one_row(risk), risk)["rtp"] - RTP_TARGET) < 1e-9
     for risk in PICK_ONE_MISS
-    if has_pick_one_bonus(risk)
 ), "base_stats missed Off pick_1's bonus tier"
 # The bonus tier must not leak into any other mode, and pick_1's three books
 # must still add up to the full C(40,1) sample space.
-assert [s.miss_bonus for s in off_outcomes(1, "classic")] == [False, False]
-assert [s.miss_bonus for s in off_outcomes(1, "low")] == [False, False]
+assert [s.miss_bonus for s in off_outcomes(1, "classic")] == [False, True, False]
+assert [s.miss_bonus for s in off_outcomes(1, "low")] == [False, True, False]
 assert [s.miss_bonus for s in off_outcomes(1, "medium")] == [False, True, False]
 assert sum(off_weight(1, s, "classic") for s in off_outcomes(1, "classic")) == comb(POOL, 1)
 assert sum(off_weight(1, s, "low") for s in off_outcomes(1, "low")) == comb(POOL, 1)

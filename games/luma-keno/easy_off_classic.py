@@ -19,9 +19,9 @@ Pick 2 exception: HUD max 5.0 has no in-window lattice point
 (1.7/5.0 = 0.9423, 1.8/5.0 = 0.9808). Snap is 5.4, same exception Easy
 took at 4.5 → 4.7.
 
-pick_1 stays on the closed-form two-outcome lattice in keno_pick_one.py
-(classic miss 0.4, hit 2.6, RTP 0.950 — no miss-bonus third tier) and is
-not in CLASSIC_OFF.
+pick_1 stays on the advertised pair [0.4, 2.6] in keno_pick_one.py
+(base RTP 0.950) plus the 1-in-5 miss-bonus third tier so LUT RTP is
+0.9650. Not in CLASSIC_OFF.
 
 Scope: **Off only.** Earn `classic` and the buy chips keep their own ladders.
 """
@@ -105,6 +105,9 @@ def _seed_geometric(k: int, hud: list[float], mx: float) -> tuple[list[float], f
     steps = k - f
     probs = [float(p) for p in _probs(k)]
     target = float(TARGET)
+    if steps == 0:
+        # Single paying cell: the max is the whole row (Hard pick 2).
+        return _row_from(f, k, mx, 1.0, mx), 1.0
     if steps == 1:
         m_f = (target - probs[k] * mx) / probs[f]
         return _row_from(f, k, m_f, mx / m_f, mx), mx / m_f
@@ -216,10 +219,16 @@ def _repair(
     return best if _legal(k, hud, best, mx) else None
 
 
-def generate_classic_row(k: int, hud: list[float] | None = None) -> list[float]:
-    """One pick: lock max, solve the geometric ladder onto 0.9650."""
+def generate_classic_row(
+    k: int, hud: list[float] | None = None, mx: float | None = None
+) -> list[float]:
+    """One pick: lock max, solve the geometric ladder onto 0.9650.
+
+    `mx` defaults to this module's `MAX_LADDER[k]`. Off `medium`/`high` pass
+    their own max so they can reuse the same solver without mutating classic.
+    """
     hud = hud or CLASSIC_HUD[k]
-    mx = MAX_LADDER[k]
+    mx = MAX_LADDER[k] if mx is None else mx
     seed, r_ideal = _seed_geometric(k, hud, mx)
     snapped = _snap(k, hud, seed, mx)
     for band in RATIO_BANDS:

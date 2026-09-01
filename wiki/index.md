@@ -1,10 +1,10 @@
 ---
 type: index
 tags: [meta]
-updated: 2026-09-01
+updated: 2026-09-02
 source_count: 7
 page_count: 21
-last_change: 2026-09-01 keno paytable generation algorithm (concepts/keno-paytable-generation).
+last_change: 2026-09-02 Off high geometric HUD copy shipped.
 ---
 
 # Math SDK Wiki
@@ -43,7 +43,7 @@ _Vendor and external docs, summarized — not copied._
 
 - [[codebase/sdk-layout]] — `src/`, `games/`, outputs, what to edit.
 - [[codebase/gladiator-tower]] — Session climb math, modes, publish pipeline.
-- [[codebase/luma-keno]] — Hit-count keno, 160 modes (Off / Earn / buy10 / buy100) at 0.9650 RTP; `pulseRolled` vs `pulse`; buy ceilings capped per cost. Off `low` **is** the snapped Keno Xtreme Easy copy (2026-09-01, `easy_off_low.py`); classic / medium / high HUDs still not copied.
+- [[codebase/luma-keno]] — Hit-count keno, 160 modes (Off / Earn / buy10 / buy100) at 0.9650 RTP; `pulseRolled` vs `pulse`; buy ceilings capped per cost. Off `low` is the Easy leftover-share copy; Off `classic` / `medium` / `high` are geometric HUD copies.
 
 ## Domain
 
@@ -51,14 +51,14 @@ _Vendor and external docs, summarized — not copied._
 - [[domain/stake-rating-limits]] — 2-Star / 3-Star gates (P5K, P10K, CVaR, ETL, ETL sum, stddev, caps). Max payout is measured against the **base bet**, so bonus-buy cost divides the usable ceiling. Volatility is also rated categorically, and a mode can be rated Extreme at half the stddev ceiling. ETL sum (etl40+etl10k) is a separate dashboard gate: 1.3 / 1.5.
 - [[domain/keno-xtreme-easy]] — Keno Xtreme Easy pick 1–10 hit multipliers (HUD) + the shipped luma-keno Off `low` snap (0.9635–0.9653).
 - [[domain/keno-xtreme-classic]] — Keno Xtreme Classic pick 1–10 hit multipliers (HUD).
-- [[domain/keno-xtreme-medium]] — Keno Xtreme Medium pick 1–10 hit multipliers (HUD).
-- [[domain/keno-xtreme-hard]] — Keno Xtreme Hard / Degen pick 1–10 hit multipliers (HUD).
+- [[domain/keno-xtreme-medium]] — Keno Xtreme Medium HUD + shipped luma-keno Off `medium` geometric snap (0.9647–0.9654).
+- [[domain/keno-xtreme-hard]] — Keno Xtreme Hard HUD + shipped luma-keno Off `high` geometric snap (0.9635–0.9654).
 
 ## Concepts
 
 - [[concepts/wiki-maintenance-workflow]] — Ingest, query, lint, logging.
 - [[concepts/tower-math-from-ratings]] — Build order: probabilities → RTP budget → row table → MC.
-- [[concepts/keno-paytable-generation]] — How Off multipliers are solved: RTP identity, 0.1× lattice, classic geometric ladder, low leftover-share, pick_1 two-outcome lattice.
+- [[concepts/keno-paytable-generation]] — How Off multipliers are solved: RTP identity, 0.1× lattice, classic/medium/high geometric ladder, low leftover-share, pick_1 lattice + miss-bonus, derived volatility (dashboard label is std, not max).
 
 ## Analyses
 
