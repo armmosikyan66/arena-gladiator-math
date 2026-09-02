@@ -21,8 +21,8 @@ print("front buy10 medium 10", f["buy10"]["medium"]["10"])
 print("front buy100 medium 10", f["buy100"]["medium"]["10"])
 assert f["buy10"]["medium"]["10"] == p["buy10"]["medium"]["10"]
 assert f["buy100"]["medium"]["10"] == p["buy100"]["medium"]["10"]
-assert max(f["buy10"]["medium"]["10"]) == 1500.0
-assert max(f["buy100"]["medium"]["10"]) == 300.0
+assert max(f["buy10"]["medium"]["10"]) == 2250.0
+assert max(f["buy100"]["medium"]["10"]) == 450.0
 
 # certified unchanged
 print("front off medium 10", max(f["risks"]["medium"]["10"]))
@@ -52,7 +52,7 @@ for name in (
     print(f"{name:28s} rtp={m['rtp']:.4f} how_base={how:.1f} of_buy={how/cost:.1f} n={len(m['books'])}")
 
 assert abs(max(r["payout"] for r in b["medium_pick_10"]["books"]) / 100 - 5000.0) < 1e-6
-assert abs(max(r["payout"] for r in b["medium_pick_10_earn"]["books"]) / 100 - 30000.0) < 1e-6
+assert abs(max(r["payout"] for r in b["medium_pick_10_earn"]["books"]) / 100 - 20000.0) < 1e-6
 assert abs(max(r["payout"] for r in b["classic_pick_10_earn"]["books"]) / 100 - 4000.0) < 1e-6
 assert abs(max(r["payout"] for r in b["medium_pick_10_buy10"]["books"]) / 100 / 10 - 4500.0) < 1e-6
 assert abs(max(r["payout"] for r in b["medium_pick_10_buy100"]["books"]) / 100 / 100 - 900.0) < 1e-6

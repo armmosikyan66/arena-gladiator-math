@@ -130,17 +130,29 @@ EXTRA_CHANCE_PCT = {
     "medium": 7,
     "high": 4,
 }
-# Earn-only: Pulse rides the extra lights. It rolls on 10% of rounds whose
-# extras OPEN and never when they stay closed — the roll is a charge on one of
-# the two extra lights, not an independent round roll. Off never rolls it.
-# Classic/low/high ×2; medium ×3. Same 10% chance on every risk.
+# Earn-only: Pulse rides the extra lights. Boost is ×2 on every risk.
+# Chance is 10% of extra-open rounds on picks 2–10 (and every buy round
+# with 2+ picks). Pick_1 is the exception: a shared 10% collapses all four
+# Earn pick_1 rows onto 0.5/2.1, so pick_1 uses a per-risk chance that puts
+# Off's miss ladder on the 0.1× grid inside MODE_RTP_BAND.
 PULSE_BOOST = {
     "classic": 2.0,
     "low": 2.0,
-    "medium": 3.0,  # only risk above x2; Off 5000 x6 How-to = 30000 under 100k
+    "medium": 2.0,
     "high": 2.0,    # not x5: Off 50000 x2 x5 How-to = 500000 over the 100k cap
 }
 PULSE_CHANCE_PCT = 10
+PULSE_CHANCE_PICK_ONE_PCT = {
+    "low": 10,       # 0.5 / 2.1
+    "classic": 4,    # 0.4 / 2.4
+    "medium": 12,    # 0.2 / 2.9
+    "high": 6,       # 0.1 / 3.2
+}
+
+
+def pulse_chance_pct(risk: str, k: int) -> int:
+    """Pulse roll rate among extra-open books for this risk and pick count."""
+    return PULSE_CHANCE_PICK_ONE_PCT[risk] if k == 1 else PULSE_CHANCE_PCT
 # high was 5.0, which put 69-74% of the return on picks 5-10 into a channel that
 # pays on under 3% of rounds: the base table was left doing a quarter of its
 # nominal job, so a session read as a flat line punctuated by rare spikes.
@@ -590,11 +602,12 @@ def spin_weight(
     pair_total = comb(rest, EXTRA_N)
     pair = extra_pair_weight(k, spin.main_hits, spin.extra_hits)
     chance = EXTRA_CHANCE_PCT[risk]
-    # The 10/90 Pulse split only exists on extra-open books; a closed-extras
+    # The Pulse split only exists on extra-open books; a closed-extras
     # round carries the full denominator because it never rolls.
     if spin.extras:
+        pulse_pct = pulse_chance_pct(risk, k)
         pulse_part = (
-            PULSE_CHANCE_PCT if spin.pulse else (CHANCE_DENOM - PULSE_CHANCE_PCT)
+            pulse_pct if spin.pulse else (CHANCE_DENOM - pulse_pct)
         )
     else:
         pulse_part = CHANCE_DENOM
@@ -703,9 +716,10 @@ def effective_coeff(
     """RTP = sum_h coeff[h] * advertised[h] when advertised[h] > 0 iff h in paying.
 
     Lumen and Pulse are priced in: a paying row that is caught contributes
-    boost * P; Pulse (×2, or ×3 on medium) on 10% of the books whose extras
-    open — it is a charge on an extra light, so closed-extras rounds never
-    roll it. Extras from Lumen only open when main_hits is in `paying`.
+    boost * P; Pulse (×2 on every risk) on `pulse_chance_pct(risk, k)` of the
+    books whose extras open — 10% on picks 2–10, a per-risk slice on pick_1
+    so the advertised hit can follow Off's miss ladder. Closed-extras rounds
+    never roll it. Extras from Lumen only open when main_hits is in `paying`.
 
     `bought` forces the extras open, which is the buy chips' whole product. It
     shifts weight into the higher total-hit buckets rather than adding a
@@ -884,37 +898,34 @@ def pick_one_row_earn(risk: str) -> list[float]:
     settlement and the row does not pay what the table says. Off has no such
     rounding, which is why it can use the finer grid to land exactly on target.
 
-    The cost is a coarse lattice on high, where Lumen x5 makes reachable RTPs
-    0.0055 apart — see the MODE_RTP_BAND note for why that pins the band floor.
+    Miss is pinned to Off's `PICK_ONE_MISS[risk]` so the four risks keep a
+    visible hit ladder (low < classic < medium < high). Searching every miss
+    and tie-breaking on `-miss` collapses them all onto 0.5/2.1 whenever
+    Pulse chance is shared. Pulse chance is the remaining lever that puts
+    each pinned miss on the 0.1× lattice inside MODE_RTP_BAND.
     """
     coeff = effective_coeff(risk, 1, frozenset({0, 1}))
     lo, hi = MODE_RTP_BAND
     best: tuple[float, float, list[float]] | None = None
-    # Earn follows the fork Off took for this risk (see PICK_ONE_MISS). Without
-    # this the `-miss` tie-break below prefers the *highest* affordable miss, so
-    # Earn would reinstate the 75% LDW that Off just removed on `high`.
-    jackpot_fork = PICK_ONE_MISS[risk] == 0.0
-    miss_range = range(0, 1) if jackpot_fork else range(1, 16)
-    for miss_i in miss_range:
-        miss = miss_i / 10
-        for hit_i in range(miss_i + 1, 81):
-            hit = hit_i / 10
-            rtp = coeff[0] * miss + coeff[1] * hit
-            # Filter on the band the caller will gate on, not a private
-            # tolerance, or the two disagree and the solver reports a failure it
-            # had no way to avoid.
-            if not lo <= rtp <= hi:
-                continue
-            err = abs(rtp - RTP_TARGET)
-            table = [miss, hit]
-            stats = settled_stats(risk, 1, table)
-            if stats["std"] < STD_MIN:
-                continue
-            key = (err, -miss)
-            if best is None or key < (best[0], -best[2][0]):
-                best = (err, stats["std"], table)
+    miss = PICK_ONE_MISS[risk]
+    miss_i = int(round(miss * 10))
+    for hit_i in range(miss_i + 1, 81):
+        hit = hit_i / 10
+        rtp = coeff[0] * miss + coeff[1] * hit
+        if not lo <= rtp <= hi:
+            continue
+        err = abs(rtp - RTP_TARGET)
+        table = [miss, hit]
+        stats = settled_stats(risk, 1, table)
+        if stats["std"] < STD_MIN:
+            continue
+        key = (err, -hit)
+        if best is None or key < (best[0], -best[2][1]):
+            best = (err, stats["std"], table)
     if best is None:
-        raise ValueError(f"no pick_1 lattice for {risk} with Lumen priced in")
+        raise ValueError(
+            f"no pick_1 lattice for {risk} at miss={miss:g} with Lumen priced in"
+        )
     return best[2]
 
 
@@ -924,6 +935,12 @@ def pick_one_std_earn(risk: str) -> float:
 
 assert all(pick_one_std(risk) > STD_MIN for risk in PICK_ONE_MISS)
 assert all(pick_one_std_earn(risk) > STD_MIN for risk in LUMEN_BOOST)
+_EARN_PICK_ONE_HITS = [
+    pick_one_row_earn(r)[1] for r in ("low", "classic", "medium", "high")
+]
+assert _EARN_PICK_ONE_HITS == sorted(_EARN_PICK_ONE_HITS) and len(set(_EARN_PICK_ONE_HITS)) == 4, (
+    f"Earn pick_1 hits {_EARN_PICK_ONE_HITS} are not a strict hierarchy"
+)
 assert (
     abs(settled_rtp("classic", 1, pick_one_row_earn("classic")) - RTP_TARGET) <= 0.0025
 )
@@ -975,7 +992,7 @@ assert parse_spin_criteria("hits_3_lumen_1_extra_1_lumen_1_pulse_1") == SpinCrit
 )
 assert lumen_pay(2.6, True, "classic") == 5.2
 assert settle_pay(2.6, True, True, "classic") == 10.4
-assert settle_pay(2.6, True, True, "medium") == 15.6
+assert settle_pay(2.6, True, True, "medium") == 10.4
 assert lumen_pay(0.088, False, "classic", cost=100) == 0.088
 assert lumen_pay(0.088, True, "classic", "buy100", 100) == 8.8
 assert settle_pay(0.088, True, True, "classic", "buy100", 100) == 17.6
@@ -985,9 +1002,9 @@ assert lumen_pay(2.6, False, "classic") == 2.6
 assert lumen_boost_applied(0.0, True, "high") == 1.0
 assert lumen_boost_applied(2.6, True, "medium") == 2.0
 assert pulse_boost_applied(5.2, True, "classic") == 2.0
-assert pulse_boost_applied(5.2, True, "medium") == 3.0
+assert pulse_boost_applied(5.2, True, "medium") == 2.0
 # Pulse only exists on extra-open books: no closed-extras book carries it, and
-# within the open set it holds exactly its 10%.
+# within the open set it holds exactly that risk's PULSE_CHANCE_PCT.
 assert not any(
     s.pulse for k in range(1, 11) for s in spin_outcomes(k) if not s.extras
 )
@@ -995,11 +1012,11 @@ assert all(
     abs(
         sum(spin_weight(k, s, r) for s in spin_outcomes(k) if s.pulse)
         / sum(spin_weight(k, s, r) for s in spin_outcomes(k) if s.extras)
-        - PULSE_CHANCE_PCT / CHANCE_DENOM
+        - pulse_chance_pct(r, k) / CHANCE_DENOM
     )
     < 1e-12
     for k in (1, 5, 10)
-    for r in ("classic", "medium")
+    for r in ("classic", "medium", "low", "high")
 )
 assert sum(spin_weight(1, spin, "classic") for spin in spin_outcomes(1)) == comb(40, 1) * DRAWN * weight_scale()
 assert sum(spin_weight(5, spin, "classic") for spin in spin_outcomes(5)) == comb(40, 5) * DRAWN * weight_scale()

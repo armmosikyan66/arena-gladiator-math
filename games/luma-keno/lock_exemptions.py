@@ -63,17 +63,51 @@ EXEMPTIONS: dict[tuple[str, str, int], Exemption] = {
         retire_by="cut the top to 22000x (recommended) or drop the hit-3 tier",
         owner="ops",
     ),
-    ("earn", "low", 10): Exemption(
-        rules=("ratio_min_mid",),
+    ("earn", "low", 8): Exemption(
+        rules=("ratio_min_mid", "last_catch"),
         reason=(
-            "100x is far too low for an 8-cell ladder - the reachable ceiling "
-            "is rtp 0.4465, and even 300x only reaches 0.6086. Hits 3-4 carry "
-            "~57% of the coefficient mass, so a 0.963 row must pay them near "
-            "1x, which the 2.5x mid floor forbids once either cell clears the "
-            "consolation line."
+            "Easy leftover-share at advertised 100x (How-to 400x). A lock-clean "
+            "6-cell ladder cannot reach the 0.963 window under that top "
+            "(reachable ceiling ~0.46). Raising to ~400x would leave Easy and "
+            "read as classic. Hits 3-4 carry the coefficient mass, so the body "
+            "pays near 1-2x and cannot stair 2.5x into a 100x peak."
+        ),
+        retire_by="raise the advertised top to ~400x (leaves Easy), or drop paying tiers",
+        owner="ops",
+    ),
+    ("earn", "low", 9): Exemption(
+        rules=("ratio_min_mid", "last_catch"),
+        reason=(
+            "Same Easy 100x pin as pick 8. Lock-clean 7-cell RTP ceiling ~0.45. "
+            "Leftover-share of the HUD is the designed body; a restair would "
+            "need a ~500x advertised top."
+        ),
+        retire_by="raise the advertised top to ~500x (leaves Easy), or drop paying tiers",
+        owner="ops",
+    ),
+    ("earn", "low", 10): Exemption(
+        rules=("ratio_min_mid", "last_catch"),
+        reason=(
+            "100x is far too low for an 8-cell lock-clean ladder — reachable "
+            "ceiling rtp ~0.45, and even 300x only reaches 0.61. Hits 3-4 carry "
+            "~57% of the Earn coefficient mass, so a 0.965 row must pay them "
+            "near 1x, which the 2.5x mid floor forbids once either cell clears "
+            "the consolation line. Designed leftover-share (easy_earn_low.py) "
+            "keeps the Easy ceiling so How-to settles 400x."
         ),
         retire_by="raise the advertised top to ~800-1000x, or carry fewer tiers",
         owner="ops",
+    ),
+    ("earn", "medium", 10): Exemption(
+        rules=("ratio_min_mid", "last_catch"),
+        reason=(
+            "Advertised 4000x so 8/8 2000 < 9/9 3000 < 10/10 4000 on the HUD. "
+            "Hit 9 is cap-pinned at 225, so 8-of-10 stays ~150 (mid 1.5x) and "
+            "the last step is 17.8x (over the 15x last-catch ceiling). 1250x "
+            "How-to-floor inverted the pick-8/9/10 max ladder."
+        ),
+        retire_by="restair with solve_row, or drop the 8-of-10 tier",
+        owner="math",
     ),
 }
 
@@ -91,11 +125,7 @@ GRANDFATHERED: frozenset[tuple[str, str, int]] = frozenset(
         ("risks", "low", 8), ("risks", "low", 9), ("risks", "low", 10),
         ("risks", "classic", 7), ("risks", "classic", 8), ("risks", "classic", 9),
         ("risks", "medium", 8), ("risks", "medium", 9),
-        ("earn", "low", 4), ("earn", "low", 7), ("earn", "low", 8),
-        ("earn", "low", 9),
         ("earn", "classic", 5), ("earn", "classic", 6), ("earn", "classic", 9),
-        ("earn", "medium", 5), ("earn", "medium", 8), ("earn", "medium", 9),
-        ("earn", "medium", 10),
         ("earn", "high", 8), ("earn", "high", 9), ("earn", "high", 10),
         ("buy10", "low", 6), ("buy10", "low", 9), ("buy10", "low", 10),
         ("buy10", "classic", 9), ("buy10", "classic", 10),

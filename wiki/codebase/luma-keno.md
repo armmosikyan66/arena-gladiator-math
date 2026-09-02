@@ -49,15 +49,15 @@ Earn extras: 0 or 2 from the remaining 30 (`lumen` / `nearMiss` / luck).
 Extra hits pay the Earn table, then Lumen multiplies that base.
 
 Earn Pulse: a **charge on an extra light**, so it rolls on **10% of the
-books whose extras open** and never when they stay closed. Boost ×2 on
-classic/low/high and **×3 on medium**, applied after Lumen and only on a
-paying table. Buy chips always open extras, so their roll rate stays a flat
-10% of rounds.
+books whose extras open** and never when they stay closed. Boost **×2 on
+every risk**, applied after Lumen and only on a paying table. Buy chips
+always open extras, so their roll rate stays a flat 10% of rounds.
 
-> ⚠️ This page said "×2" uniformly until 2026-08-28. `f506383 fix pulse
-> multipliers` (2026-08-26) turned `PULSE_BOOST` from the scalar `2.0`
-> into a per-risk map with medium at ×3, and neither Aug 26 commit was
-> logged. Treat `keno_pick_one.py` as the source of truth.
+> ⚠️ Medium was the lone Pulse ×3 until 2026-09-02. Unifying Pulse at ×2
+> made all four pick_1 lattices coincide on `[0.5, 2.1]`. A later 2026-09-02
+> change keeps Pulse ×2 and varies **pick_1 Pulse chance** (10 / 4 / 12 / 6%)
+> so advertised hits follow Off's miss ladder: 2.1 / 2.4 / 2.9 / 3.2.
+> Picks 2–10 stay at 10%. Treat `keno_pick_one.py` as the source of truth.
 
 Rolling Pulse and being paid for it are different events. `pulse_pay`
 refuses to rescue a 0× row, so a rolled Pulse on a dead table is a roll the
@@ -320,9 +320,25 @@ Illegal-cell snaps and the trims that reach the window: `0.25→0.2`,
 (`4.5→4.4`). Pick 3 trims `1.0→0.6` and raises `3.1→4.2` (its HUD body
 underpays low hits, so the budget moves up-ladder); pick 4 trims `1.8→1.7`,
 `5.0→4.9`; pick 8 trims `2.2→2.1`, `13→12.8`; pick 9 trims `8→7.5`.
-Maxes move only on pick 2 (`4.5→4.7`). Earn `low`
-and the buy chips are untouched — they keep their own ladders (Earn low
-pick_8–10 advertise ~100× so Lumen×2 × Pulse×2 settles 400×).
+Maxes move only on pick 2 (`4.5→4.7`). Buy chips keep their own ladders.
+
+**Shipped 2026-09-02** Earn `low` leftover-share (`easy_earn_low.py`). Same
+HUD zeros; advertised body cheaper so Lumen×2 × Pulse×2 settles How-to ≥
+Off. Picks 2–4 snap max above Off (no in-window Earn pair). Picks 8–10
+advertise 100× (How-to 400×). std 1.8–3.1 (LOW).
+
+| k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | how | RTP |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **1** | 0.50 | 2.10 | | | | | | | | | | 8.4 | 0.9630 |
+| **2** | 0.00 | 1.30 | 5.30 | | | | | | | | | 21.2 | 0.9642 |
+| **3** | 0.00 | 0.70 | 2.20 | 10.90 | | | | | | | | 43.6 | 0.9641 |
+| **4** | 0.00 | 0.50 | 1.20 | 3.40 | 22.70 | | | | | | | 90.8 | 0.9634 |
+| **5** | 0.00 | 0.20 | 0.90 | 2.20 | 10.00 | 36.00 | | | | | | 144 | 0.9647 |
+| **6** | 0.00 | 0.00 | 0.60 | 2.30 | 4.20 | 10.00 | 40.00 | | | | | 160 | 0.9651 |
+| **7** | 0.00 | 0.00 | 0.30 | 1.60 | 2.70 | 7.90 | 17.90 | 60.00 | | | | 240 | 0.9650 |
+| **8** | 0.00 | 0.00 | 0.00 | 1.20 | 2.10 | 7.00 | 11.60 | 29.40 | 100.0 | | | 400 | 0.9650 |
+| **9** | 0.00 | 0.00 | 0.00 | 0.80 | 1.50 | 4.10 | 8.10 | 22.50 | 31.30 | 100.0 | | 400 | 0.9650 |
+| **10** | 0.00 | 0.00 | 0.00 | 0.70 | 1.30 | 2.30 | 4.30 | 9.30 | 26.70 | 43.10 | 100.0 | 400 | 0.9650 |
 
 ## Classic HUD vs Off `classic`
 
@@ -392,7 +408,11 @@ Competitor HUD:
 | **9** | 0.00 | 0.00 | 0.00 | 0.70 | 2.60 | 11.60 | 51.00 | 216.3 | 932.9 | 4000 |
 | **10** | 0.00 | 0.00 | 0.00 | 0.50 | 1.90 | 7.10 | 25.90 | 97.30 | 362.1 | 1343.3 | 5000 |
 
-Earn `medium` and the buy chips keep their own ladders.
+Earn `medium` and the buy chips keep their own ladders. Pick_1 is
+`[0.2, 2.9]` (Pulse chance 12% on one pick only). Advertised tops sit at
+the How-to floor (or the first lock-clean last-catch) so the HUD does not
+cliff: 154.5 / 162.5 / 750 / 2000 / 3000 / 4000 on picks 5–10. How-to
+still beats Off. HUD full-card maxes climb 8/8 < 9/9 < 10/10.
 
 ## Hard HUD vs Off `high`
 
@@ -444,8 +464,9 @@ Earn `high` and the buy chips keep their own ladders.
 | --- | --- |
 | `keno_pick_one.py` | Off + Earn + buy pick_1 lattices; lumen/extra criteria; `lumen_pay` |
 | `easy_off_low.py` | Designed Off `low` chart (Keno Xtreme Easy leftover-share, picks 2–10); validates at import |
+| `easy_earn_low.py` | Designed Earn `low` chart (same HUD zeros, leftover-share on Earn coefficients) |
 | `easy_off_classic.py` / `easy_off_medium.py` / `easy_off_high.py` | Off geometric HUD copies (classic / medium / high); `generate_classic_row` is the shared solver |
-| `solve_paytables.py` | `solve_off` / `solve_earn` / `solve_buy`; cap ladder incl. `MAX_PAYOUT_ABS` and `TOP_OVERRIDE`; `JACKPOT_TOP` pins picks 4–10 (Off/Earn 4–8 via `jackpot_applies`); Off `low` bypasses this via `easy_off_low.py`; `check_gates` |
+| `solve_paytables.py` | `solve_off` / `solve_earn` / `solve_buy`; cap ladder incl. `MAX_PAYOUT_ABS` and `TOP_OVERRIDE`; `JACKPOT_TOP` pins picks 4–10 (Off/Earn 4–8 via `jackpot_applies`); Off `low` / Earn `low` bypass this via `easy_off_low.py` / `easy_earn_low.py`; `check_gates` |
 | `paytables.json` | `risks` (Off) + `earn` + `buy10` + `buy100` + `solved` (which sections this solve owns) |
 | `run.py` / `export_luts.py` | 160-mode books; Off hypergeometric; Earn/buy lumen×extra weights; extra-gated `pulseRolled`; writes the client's `src/data/keno-books.json` |
 | `utils/rgs_verification.py` | vendored; local gate mirror. `max_win` added to `mode_limits` 2026-08-28 |

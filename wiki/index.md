@@ -4,7 +4,7 @@ tags: [meta]
 updated: 2026-09-02
 source_count: 7
 page_count: 21
-last_change: 2026-09-02 Off high geometric HUD copy shipped.
+last_change: 2026-09-02 Earn medium 8/8 2000 < 9/9 3000 < 10/10 4000.
 ---
 
 # Math SDK Wiki
@@ -43,13 +43,13 @@ _Vendor and external docs, summarized — not copied._
 
 - [[codebase/sdk-layout]] — `src/`, `games/`, outputs, what to edit.
 - [[codebase/gladiator-tower]] — Session climb math, modes, publish pipeline.
-- [[codebase/luma-keno]] — Hit-count keno, 160 modes (Off / Earn / buy10 / buy100) at 0.9650 RTP; `pulseRolled` vs `pulse`; buy ceilings capped per cost. Off `low` is the Easy leftover-share copy; Off `classic` / `medium` / `high` are geometric HUD copies.
+- [[codebase/luma-keno]] — Hit-count keno, 160 modes (Off / Earn / buy10 / buy100) at 0.9650 RTP; Pulse ×2 on every risk; buy ceilings capped per cost. Off `low` is the Easy leftover-share copy; Earn `low` is the same HUD zeros leftover-filled on Earn coefficients; Off `classic` / `medium` / `high` are geometric HUD copies.
 
 ## Domain
 
 - [[domain/stake-engine-publish]] — Books, LUT, `index.json`, payout units, RGS.
 - [[domain/stake-rating-limits]] — 2-Star / 3-Star gates (P5K, P10K, CVaR, ETL, ETL sum, stddev, caps). Max payout is measured against the **base bet**, so bonus-buy cost divides the usable ceiling. Volatility is also rated categorically, and a mode can be rated Extreme at half the stddev ceiling. ETL sum (etl40+etl10k) is a separate dashboard gate: 1.3 / 1.5.
-- [[domain/keno-xtreme-easy]] — Keno Xtreme Easy pick 1–10 hit multipliers (HUD) + the shipped luma-keno Off `low` snap (0.9635–0.9653).
+- [[domain/keno-xtreme-easy]] — Keno Xtreme Easy pick 1–10 hit multipliers (HUD) + the shipped luma-keno Off `low` snap (0.9635–0.9653) and Earn `low` leftover-share (How-to 21–400×).
 - [[domain/keno-xtreme-classic]] — Keno Xtreme Classic pick 1–10 hit multipliers (HUD).
 - [[domain/keno-xtreme-medium]] — Keno Xtreme Medium HUD + shipped luma-keno Off `medium` geometric snap (0.9647–0.9654).
 - [[domain/keno-xtreme-hard]] — Keno Xtreme Hard HUD + shipped luma-keno Off `high` (picks 5–8 std-18.3 envelope; 9–10 keep 40k/50k).

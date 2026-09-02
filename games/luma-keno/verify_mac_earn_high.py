@@ -16,17 +16,17 @@ assert pay["earn"]["high"]["10"][-1] == 25000.0
 assert front["earn"]["high"]["10"][-1] == 25000.0
 earn_how = max(r["payout"] for r in books["modes"]["high_pick_10_earn"]["books"]) / 100
 assert earn_how == 100000.0, earn_how
-assert pay["earn"]["high"]["1"] == [0.5, 2.1]
+assert pay["earn"]["high"]["1"] == [0.1, 3.2]
 
 assert pay["earn"]["medium"]["10"][-1] == 5000.0
 assert front["earn"]["medium"]["10"][-1] == 5000.0
 med_how = max(r["payout"] for r in books["modes"]["medium_pick_10_earn"]["books"]) / 100
-assert med_how == 30000.0, med_how
+assert med_how == 20000.0, med_how
 
-assert pay["buy10"]["medium"]["10"][-1] == 1500.0
-assert pay["buy100"]["medium"]["10"][-1] == 300.0
-assert front["buy10"]["medium"]["10"][-1] == 1500.0
-assert front["buy100"]["medium"]["10"][-1] == 300.0
+assert pay["buy10"]["medium"]["10"][-1] == 2250.0
+assert pay["buy100"]["medium"]["10"][-1] == 450.0
+assert front["buy10"]["medium"]["10"][-1] == 2250.0
+assert front["buy100"]["medium"]["10"][-1] == 450.0
 
 assert pay["earn"]["classic"]["10"][-1] == 1000.0
 assert front["earn"]["classic"]["10"][-1] == 1000.0

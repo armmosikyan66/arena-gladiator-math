@@ -18,8 +18,8 @@ rgs_verification warnings):
 
 Caps and the sub-40 consolation are on **settled** payouts (after Lumen
 and Pulse) so ETL40 / CVaR stay legal. Advertised tops are
-settled_cap / (lumen_boost_for × PULSE_BOOST[risk]). Pulse is ×2 except
-medium ×3. Buy chips use BUY_LUMEN_BOOST (10× / 100×) instead of Earn ×2.
+settled_cap / (lumen_boost_for × PULSE_BOOST[risk]). Pulse is ×2 on every
+risk. Buy chips use BUY_LUMEN_BOOST (10× / 100×) instead of Earn ×2.
 
 Dashboard Expected Tail Liability (Sum) is etl40 + etl10k and
 double-counts any win that is both ≥40× cost and ≥10,000× the base bet.
@@ -74,19 +74,17 @@ from keno_pick_one import (
     settled_stats,
 )
 from easy_off_low import EASY_OFF_LOW
+from easy_earn_low import EASY_EARN_LOW, MAX_LADDER as EARN_LOW_MAX
 from easy_off_classic import CLASSIC_OFF
 from easy_off_medium import MEDIUM_OFF
 from easy_off_high import HIGH_OFF
 from restaired_rows import scaled_row_for
 
-# Earn `low` Easy analogue. Off low is the HUD copy (maxes 4.7..100). Earn
-# prices Lumen x2 and Pulse x2 into the same identity: advertised top is at
-# least the Off max so How-to / rail cannot land below Off, and picks 8-10
-# advertise 100x so a full card settles 400x. JACKPOT_TOP's 20,000x settled
-# pin is the high-risk ladder and must not steal Easy's ceiling.
-EASY_EARN_LOW_TOP = {
-    k: (100.0 if k >= 8 else EASY_OFF_LOW[k][-1]) for k in range(3, 11)
-}
+# Earn `low` Easy analogue. Designed chart is easy_earn_low.py (HUD zeros +
+# leftover-share on Earn coefficients). Advertised top is at least the Off
+# max so How-to cannot land below Off; picks 8-10 advertise 100x so a full
+# card settles 400x. JACKPOT_TOP's 20,000x settled pin must not steal Easy.
+EASY_EARN_LOW_TOP = {k: EARN_LOW_MAX[k] for k in range(3, 11)}
 
 # Earn `classic` HUD analogue. Off classic maxes 5.4..1000. Picks 3-7 pin at
 # that pick's Off max; picks 8-10 advertise 1000x so Lumen x2 x Pulse x2
@@ -103,17 +101,19 @@ CLASSIC_EARN_TOP = {
     10: 1000.0,
 }
 
-# Earn medium: Pulse x3, Lumen x2, How-to = advertised x6. Picks 8-10
-# advertise Off pick-10 max 5000x so a full card settles 30000x.
+# Earn medium: Pulse x2, Lumen x2, How-to = advertised x4. Tops are the
+# How-to floor vs Off (or the first lock-clean last-catch) so the HUD does
+# not park the body then cliff into the jackpot. Pick 7 already last-steps
+# at 9x. Pick 10 cannot lock-clean the 8->9 mid at any top.
 MEDIUM_EARN_TOP = {
-    3: 39.3,    # Off 60.3; 39.4 lands rtp 0.9663 over designed window
-    4: 110.0,   # Off 174.9; 110.1 lands rtp 0.9660 over designed window
-    5: 406.5,   # Off 450; 407.0 is cvar 700.8 over the 700 gate
-    6: 650.0,
-    7: 750.0,
-    8: 5000.0,
-    9: 5000.0,
-    10: 5000.0,
+    3: 32.3,    # Off 60.3. 2-hit matches Off 1.7x (a real win, not a 1.0 push); RTP 0.9646
+    4: 44.5,    # Off 174.9. 110 left a 73x last step (1.5 -> 110); 44.5 How-to 178, 3-hit 6.9 (HUD 7)
+    5: 154.5,   # Off 450. 406.5 left 2.6 -> 406.5 (156x); 154.5 is first lock-clean, 4-hit 20.2, last 7.65
+    6: 162.5,   # Off 650. 650 left 29.9 -> 650 (22x); How-to floor 650, last 4.03
+    7: 750.0,   # Off 750. Last step 9x already in band
+    8: 2000.0,  # Off 2500. 5000 left 168 -> 5000 (30x); 2000 is lock-clean last 8.9, How-to 8000
+    9: 3000.0,  # Off 4000. 5000 left 225 -> 5000 (22x); 3000 is lock-clean last 13.3, How-to 12000
+    10: 4000.0,  # Off 5000. Must sit above pick 9's 3000 (HUD 8<9<10). Last 17.8; 5000 was 22x.
 }
 
 # Earn high: Pulse x2, Lumen x2, How-to = advertised x4. Skip JACKPOT_TOP
@@ -223,8 +223,8 @@ def easy_buy_medium_top(k: int, cost: float) -> float | None:
     or the dashboard Max Payout cap if that binds first.
 
     vs-debit is Pulse x JSON (Lumen x Pulse / cost). buy10's 45,000x base-bet
-    cap limits JSON to 1500x; buy100's 90,000x limits JSON to 300x. Pulse is
-    x3 on medium. Ceiling, not a raise: never paint Off 5000 over those tops.
+    cap limits JSON to 2250x; buy100's 90,000x limits JSON to 450x. Pulse is
+    x2 on medium. Ceiling, not a raise: never paint Off 5000 over those tops.
     """
     if k not in MEDIUM_OFF:
         return None
@@ -1665,9 +1665,12 @@ def _solve_ladder(
                     errors = []
             elif not earn and risk == "low" and not bought and buy is None:
                 # Off `low` is the Keno Xtreme Easy analogue: a designed HUD
-                # copy (easy_off_low.py), not a water-fill solve. Earn low and
-                # the buy chips keep their own ladders — this is Off-only.
+                # copy (easy_off_low.py), not a water-fill solve.
                 table, errors = list(EASY_OFF_LOW[k]), []
+            elif earn and risk == "low" and not bought and buy is None:
+                # Earn `low`: leftover-share of the Easy HUD with Lumen/Pulse
+                # priced in (easy_earn_low.py). Buy chips keep their own ladders.
+                table, errors = list(EASY_EARN_LOW[k]), []
             elif not earn and risk == "classic" and not bought and buy is None:
                 # Off `classic`: max-anchored geometric ladder (easy_off_classic.py).
                 # pick_1 stays on the lattice.
@@ -1883,34 +1886,33 @@ def write_outputs(off: dict, earn: dict, buys: dict) -> None:
 
 
 def patch_earn_low(paytables_path: str | None = None) -> dict:
-    """Re-solve Earn `low` only. Off and every other risk stay put."""
+    """Write Earn `low` picks 2-10 from EASY_EARN_LOW. pick_1 stays lattice.
+
+    Off / buy / classic / medium / high are not touched. Also patches the
+    web `keno-paytables.json` so the HUD matches the math file.
+    """
     here = os.path.dirname(os.path.abspath(__file__))
     path = paytables_path or os.path.join(here, "paytables.json")
     with open(path, encoding="UTF-8") as handle:
         doc = json.load(handle)
     off_low = doc["risks"]["low"]
-    tables: dict[str, list[float]] = {}
+    tables: dict[str, list[float]] = {"1": list(pick_one_row_earn("low"))}
     rtps: list[float] = []
     failures: dict[str, list[str]] = {}
     for k in PICKS:
         name = f"low_pick_{k}_earn"
         if k == 1:
-            table, errors = pick_one_row_earn("low"), []
+            table, errors = list(tables["1"]), []
         else:
-            table, errors = solve_table("low", k, True, False, 1.0, False, None)
+            table, errors = list(EASY_EARN_LOW[k]), []
         stats = mode_stats_for("low", k, table, True, False, False, 1.0, None)
-        fails = list(errors) + check_gates(k, stats, earn=True, cost=1.0, risk=risk)
+        fails = list(errors) + check_gates(
+            k, stats, earn=True, cost=1.0, risk="low"
+        )
         off_top = max(off_low[str(k)])
         settled_top = stats["max_m"]
         advertised_top = max(table)
-        # Jackpot picks must not advertise below Off. Picks 3-4 are 0.1
-        # lattice vs Off (39.7/40, 99.9/100). Pick 5 cannot hold Off 300
-        # without blowing RTP; How-to still sits well above Off.
-        if k >= 8 and advertised_top + 1e-9 < off_top:
-            fails.append(
-                f"advertised top {advertised_top:.1f}x < Off {off_top:.1f}x"
-            )
-        if k in (6, 7) and advertised_top + 1e-9 < off_top:
+        if k >= 6 and advertised_top + 1e-9 < off_top:
             fails.append(
                 f"advertised top {advertised_top:.1f}x < Off {off_top:.1f}x"
             )
@@ -1935,7 +1937,20 @@ def patch_earn_low(paytables_path: str | None = None) -> dict:
     with open(path, "w", encoding="UTF-8") as handle:
         json.dump(doc, handle, indent=2)
         handle.write("\n")
-    print(f"wrote {path} earn.low ({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f})")
+    web_path = resolve_web_file("keno-paytables.json", "KENO_WEB_PAYTABLES")
+    if os.path.isfile(web_path):
+        with open(web_path, encoding="UTF-8") as handle:
+            web = json.load(handle)
+        web["earn"]["low"] = tables
+        with open(web_path, "w", encoding="UTF-8") as handle:
+            json.dump(web, handle, indent=2)
+            handle.write("\n")
+        print(f"wrote {web_path} earn.low")
+    print(
+        f"wrote {path} earn.low "
+        f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f}); "
+        f"pick_1={tables['1']}"
+    )
     return tables
 
 
@@ -2175,7 +2190,7 @@ def patch_buy_medium(paytables_path: str | None = None) -> dict:
             )
             json_top = round(max(table) * cost, 1)
             off_top = max(off_medium[str(k)])
-            earn_how_to = max(earn_medium[str(k)]) * 6.0
+            earn_how_to = max(earn_medium[str(k)]) * 4.0
             vs_debit = stats["max_m"]
             if k >= 4 and json_top - off_top > 1e-9:
                 fails.append(
@@ -2204,6 +2219,16 @@ def patch_buy_medium(paytables_path: str | None = None) -> dict:
     with open(path, "w", encoding="UTF-8") as handle:
         json.dump(doc, handle, indent=2)
         handle.write("\n")
+    web_path = resolve_web_file("keno-paytables.json", "KENO_WEB_PAYTABLES")
+    if os.path.isfile(web_path):
+        with open(web_path, encoding="UTF-8") as handle:
+            web = json.load(handle)
+        for buy, tables in out.items():
+            web[buy]["medium"] = tables
+        with open(web_path, "w", encoding="UTF-8") as handle:
+            json.dump(web, handle, indent=2)
+            handle.write("\n")
+        print(f"wrote {web_path} buy10/buy100.medium")
     print(
         f"wrote {path} buy10/buy100.medium "
         f"({len(all_rtps)} modes, rtp {min(all_rtps):.4f}-{max(all_rtps):.4f})"
@@ -2234,10 +2259,9 @@ def patch_earn_medium(paytables_path: str | None = None) -> dict:
         off_top = max(off_medium[str(k)])
         settled_top = stats["max_m"]
         advertised_top = max(table)
-        if k >= 6 and advertised_top + 1e-9 < off_top:
-            fails.append(
-                f"advertised top {advertised_top:.1f}x < Off {off_top:.1f}x"
-            )
+        # Advertised may sit under Off (Lumen x2 x Pulse x2). How-to vs Off
+        # is the identity; pinning advertised >= Off is what built the
+        # 2.6 -> 406 / 29.9 -> 650 / 225 -> 5000 cliffs.
         if settled_top + 1e-9 < off_top:
             fails.append(
                 f"settled How-to {settled_top:.1f}x < Off {off_top:.1f}x"
@@ -2253,12 +2277,30 @@ def patch_earn_medium(paytables_path: str | None = None) -> dict:
             f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
         )
         print(f"{'':20s} {table}")
+    prev_k, prev_top = None, None
+    for k in PICKS:
+        top = max(tables[str(k)])
+        if prev_top is not None and top + 1e-9 < prev_top:
+            failures.setdefault(f"medium_pick_{k}_earn", []).append(
+                f"advertised max {top:g}x < pick {prev_k} {prev_top:g}x "
+                "(HUD 8/8 < 9/9 < 10/10 must climb)"
+            )
+        prev_k, prev_top = k, top
     if failures:
         raise SystemExit(f"earn medium gate failures: {failures}")
     doc["earn"]["medium"] = tables
     with open(path, "w", encoding="UTF-8") as handle:
         json.dump(doc, handle, indent=2)
         handle.write("\n")
+    web_path = resolve_web_file("keno-paytables.json", "KENO_WEB_PAYTABLES")
+    if os.path.isfile(web_path):
+        with open(web_path, encoding="UTF-8") as handle:
+            web = json.load(handle)
+        web["earn"]["medium"] = tables
+        with open(web_path, "w", encoding="UTF-8") as handle:
+            json.dump(web, handle, indent=2)
+            handle.write("\n")
+        print(f"wrote {web_path} earn.medium")
     print(
         f"wrote {path} earn.medium "
         f"({len(rtps)} modes, rtp {min(rtps):.4f}-{max(rtps):.4f})"
@@ -2606,11 +2648,85 @@ def patch_off_classic(paytables_path: str | None = None) -> dict:
     return tables
 
 
+def patch_earn_pick_one(paytables_path: str | None = None) -> dict:
+    """Rewrite Earn + buy pick_1 only. Picks 2–10 keep their Pulse 10% ladders.
+
+    Pulse chance on one pick is per-risk so advertised hits follow Off's miss
+    ladder (low 2.1 < classic 2.4 < medium 2.9 < high 3.2) inside MODE_RTP_BAND.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = paytables_path or os.path.join(here, "paytables.json")
+    with open(path, encoding="UTF-8") as handle:
+        doc = json.load(handle)
+    failures: dict[str, list[str]] = {}
+    earn_rows: dict[str, list[float]] = {}
+    for risk in ("low", "classic", "medium", "high"):
+        table = list(pick_one_row_earn(risk))
+        stats = mode_stats_for(risk, 1, table, True, False, False, 1.0, None)
+        fails = check_gates(1, stats, earn=True, cost=1.0, risk=risk)
+        name = f"{risk}_pick_1_earn"
+        if fails:
+            failures[name] = fails
+        earn_rows[risk] = table
+        doc["earn"][risk]["1"] = table
+        print(
+            f"{name:22s} rtp={stats['rtp']:.4f} std={stats['std']:6.2f} "
+            f"adv={table} settled={stats['max_m']:.1f} "
+            f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+        )
+    hits = [earn_rows[r][1] for r in ("low", "classic", "medium", "high")]
+    if hits != sorted(hits) or len(set(hits)) < 4:
+        failures["hierarchy"] = [f"Earn pick_1 hits {hits} are not strictly increasing"]
+    buy_rows: dict[str, dict[str, list[float]]] = {}
+    for buy, cost in BUY_COSTS.items():
+        buy_rows[buy] = {}
+        for risk in ("low", "classic", "medium", "high"):
+            table, errors = buy_pick_one_row(risk, cost, buy)
+            stats = mode_stats_for(
+                risk, 1, table, True, True, False, cost, buy
+            )
+            fails = list(errors) + check_gates(
+                1, stats, earn=True, cost=cost, risk=risk
+            )
+            json_row = [round(m * cost, 1) for m in table]
+            name = f"{risk}_pick_1_{buy}"
+            if fails:
+                failures[name] = fails
+            buy_rows[buy][risk] = json_row
+            doc[buy][risk]["1"] = json_row
+            print(
+                f"{name:22s} rtp={stats['rtp']:.4f} json={json_row} "
+                f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
+            )
+    if failures:
+        raise SystemExit(f"earn pick_1 gate failures: {failures}")
+    with open(path, "w", encoding="UTF-8") as handle:
+        json.dump(doc, handle, indent=2)
+        handle.write("\n")
+    web_path = resolve_web_file("keno-paytables.json", "KENO_WEB_PAYTABLES")
+    if os.path.isfile(web_path):
+        with open(web_path, encoding="UTF-8") as handle:
+            web = json.load(handle)
+        for risk, table in earn_rows.items():
+            web["earn"][risk]["1"] = table
+        for buy, rows in buy_rows.items():
+            for risk, table in rows.items():
+                web[buy][risk]["1"] = table
+        with open(web_path, "w", encoding="UTF-8") as handle:
+            json.dump(web, handle, indent=2)
+            handle.write("\n")
+        print(f"wrote {web_path} earn/buy pick_1")
+    print(f"wrote {path} earn/buy pick_1 hits={hits}")
+    return earn_rows
+
+
 if __name__ == "__main__":
     import sys
 
     if len(sys.argv) > 1 and sys.argv[1] == "--earn-low":
         patch_earn_low()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--earn-pick-one":
+        patch_earn_pick_one()
     elif len(sys.argv) > 1 and sys.argv[1] == "--off-low":
         patch_off_low()
     elif len(sys.argv) > 1 and sys.argv[1] == "--off-classic":

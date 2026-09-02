@@ -9,7 +9,8 @@ updated: 2026-09-02
 How luma-keno **builds** an Off multiplier row. Code of record:
 `math/games/luma-keno/easy_off_classic.py` (classic geometric),
 `easy_off_medium.py` (medium geometric), `easy_off_high.py` (high geometric),
-`easy_off_low.py` (low leftover-share), `keno_pick_one.py` (pick_1 lattice).
+`easy_off_low.py` (Off low leftover-share), `easy_earn_low.py` (Earn low
+leftover-share on Earn coefficients), `keno_pick_one.py` (pick_1 lattice).
 Shipped numbers: [[domain/keno-xtreme-classic]], [[domain/keno-xtreme-medium]],
 [[domain/keno-xtreme-hard]], [[domain/keno-xtreme-easy]],
 [[codebase/luma-keno]]. Rating gates:
@@ -218,8 +219,12 @@ becomes 0.9650. Advertised row stays the two-cell pair.
 | medium | `[0.2, 3.2]` | 0.3× | 0.9650 |
 | high | `[0.1, 3.5]` | 0.2× | 0.9650 |
 
-Earn pick_1 prices Lumen + Pulse in and uses a different pair
-(`classic` `[0.5, 2.1]` → 0.9630).
+Earn pick_1 prices Lumen + Pulse in. Miss is pinned to Off's
+`PICK_ONE_MISS` and pick_1 Pulse chance is per-risk (10 / 4 / 12 / 6%)
+so the advertised hit steps: `low` `[0.5, 2.1]`, `classic` `[0.4, 2.4]`,
+`medium` `[0.2, 2.9]`, `high` `[0.1, 3.2]`. RTP 0.9630–0.9649. Picks 2–10
+keep a flat 10% Pulse chance — changing that rate on the whole ladder
+blows Classic pick 10 RTP.
 
 ## Volatility is derived, not solved
 
@@ -241,28 +246,41 @@ envelope** (900 / 2200 / 5500 / 6100) so they rate HIGH, not EXTREME.
 `easy_off_high.py` asserts `std ≤ 18.5` on those four picks. Low risk
 stays LOW (std 0.8–2.0) because the HUD body is frequent and small.
 
-## Earn and buy are not this generator
+## Earn `low` — Algorithm B on Earn coefficients
+
+Same leftover-share as Off `low`, but `effective_coeff` (Lumen ×2 ×
+Pulse ×2 priced in) replaces `P(h)`. HUD zeros stay. Advertised maxes:
+picks 5–7 pin Off; 8–10 flatten at 100× (How-to 400×); 2–4 snap to the
+nearest 0.1× above Off that lands in-window (4.7 / 10.4 / 22.5 have no
+Earn-coeff pair). Code: `easy_earn_low.py`. Do not raise Easy's 100×
+toward classic 1000× to satisfy the shape lock — that restair is
+unreachable at 100× (RTP ceiling ~0.45 with 6–8 paying cells) and is
+named debt on picks 8–10.
+
+## Earn and buy (other risks) are not this generator
 
 Off has no Lumen/Pulse — the posted table **is** the wallet multiplier.
 Earn advertises a cheaper row so Lumen ×2 × Pulse ×2 can settle the
 How-to at or above Off. Buy JSON tops pin to `min(Off max, dashboard cap / (2·cost))`.
 Re-solve Earn/buy with `--earn-<risk>` / `--buy-<risk>` after an Off max
 cut; their gates are one-directional (must not sit *below* Off on
-jackpot picks, must not *raise* Off on buy JSON).
+jackpot picks, must not *raise* Off on buy JSON). Earn `low` is the
+baked leftover-share above (`--earn-low`), not a water-fill.
 
 ## How to change a max and republish
 
 1. Put the new `M` in `MAX_LADDER[k]` (`easy_off_classic.py` /
-   `easy_off_medium.py` / `easy_off_high.py`). Confirm
+   `easy_off_medium.py` / `easy_off_high.py` / `easy_earn_low.py`). Confirm
    `generate_classic_row(k, hud, mx)` returns a row (else pick the next
-   legal lattice neighbor).
-2. Bake that row into `CLASSIC_OFF` / `MEDIUM_OFF` / `HIGH_OFF`. Import
-   validates bake == generator.
+   legal lattice neighbor). Earn low uses leftover-share, not geometric.
+2. Bake that row into `CLASSIC_OFF` / `MEDIUM_OFF` / `HIGH_OFF` /
+   `EASY_EARN_LOW`. Import validates bake == generator.
 3. `python3 solve_paytables.py --off-<risk>` (math + web `risks.<risk>`).
 4. If Earn/buy should follow: update `CLASSIC_EARN_TOP` /
-   `MEDIUM_EARN_TOP` / `HIGH_EARN_TOP`, then `--earn-<risk>` and
-   `--buy-<risk>`.
-5. `python3 run_classic.py` / `run_medium.py` / `run_high.py` for books/LUTs.
+   `MEDIUM_EARN_TOP` / `HIGH_EARN_TOP` / `EASY_EARN_LOW.MAX_LADDER`, then
+   `--earn-<risk>` and `--buy-<risk>`.
+5. `python3 run_classic.py` / `run_medium.py` / `run_high.py` /
+   `run_earn_low.py` for books/LUTs.
 6. `python3 export_chart.py risks <risk>` (and earn/buy10/buy100 if patched).
 7. `rgs_verification`, `npm run verify-front-math`, `npm run par-sheet`.
 

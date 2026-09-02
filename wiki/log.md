@@ -2,6 +2,126 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-02] change | Earn medium pick 10: 1250× → 4000× (HUD 8<9<10)
+
+- summary: wiki/domain/keno-xtreme-medium.md, wiki/codebase/luma-keno.md
+- touched: games/luma-keno/solve_paytables.py (`MEDIUM_EARN_TOP[10]` 1250→4000,
+  advertised-max climb gate), games/luma-keno/lock_exemptions.py,
+  games/luma-keno/run_earn_medium_pick_10.py, games/luma-keno/paytables.json,
+  library/ (medium_pick_10_earn), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json
+- notes: How-to floor 1250 inverted the jackpot ladder (8/8 2000, 9/9 3000,
+  10/10 1250). 4000 sits above 3000; How-to 16000 ≥ Off 5000; last step 17.8
+  (5000 was 22). RTP 0.9646. 8-of-10 still 150→225 (named exemption).
+
+## [2026-09-02] change | Earn medium: flatten last-step cliffs on picks 5–6 and 8–10
+
+- summary: wiki/domain/keno-xtreme-medium.md, wiki/codebase/luma-keno.md
+- touched: games/luma-keno/solve_paytables.py (`MEDIUM_EARN_TOP` 5/6/8/9/10,
+  drop advertised>=Off for k>=6), games/luma-keno/lock_exemptions.py,
+  games/luma-keno/run_earn_medium_cliffs.py, games/luma-keno/paytables.json,
+  library/ (medium_pick_{5,6,8,9,10}_earn), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json
+- notes: Same 73x pick-4 cliff on 5 (2.6->406.5 = 156x), 6 (22x), 8-10 (22-30x).
+  Pick 7 already 9x. Pins: 154.5 / 162.5 / 2000 / 3000 / 1250. Last steps
+  7.65 / 4.03 / 8.89 / 13.33 / 6.00. How-to still >= Off. Pick 10 cannot
+  lock-clean 8->9 (150->225 mid); named exemption. par-sheet 0 hard failures.
+
+## [2026-09-02] change | Earn medium pick 4: flatten 1.5× → 110× cliff
+
+- summary: wiki/domain/keno-xtreme-medium.md
+- touched: games/luma-keno/solve_paytables.py (`MEDIUM_EARN_TOP[4]` 110→44.5),
+  games/luma-keno/run_earn_medium_pick_4.py, games/luma-keno/paytables.json,
+  library/ (medium_pick_4_earn), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json
+- notes: 110× was the RTP ceiling, so 3-of-4 stayed at 1.5× (73× last step).
+  Pin 44.5 is the How-to floor vs Off 174.9 (settles 178×). Row
+  `[0, 0, 0.7, 6.9, 44.5]` — 2-hit matches Off 0.70, 3-hit ≈ Xtreme HUD 7,
+  last step 6.45 (medium MAX_FINAL_STEP 6). RTP 0.9650. Raising the max
+  again dumps 3-hit and reopens the cliff.
+
+## [2026-09-02] change | Earn medium pick 3: 2-hit 1.7× (above stake)
+
+- summary: wiki/domain/keno-xtreme-medium.md
+- touched: games/luma-keno/solve_paytables.py (`MEDIUM_EARN_TOP[3]` 37.8→32.3),
+  games/luma-keno/paytables.json, library/ (medium_pick_3_earn),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json
+- notes: 2-of-3 matches Off medium 1.70× so it is a real win, not a 1.0 push.
+  3/3 pin 32.3 (How-to 129.2 ≥ Off 60.3). RTP 0.9646. Raising 2-hit further
+  cuts the catch ~0.8× per 0.1× on 2-of-3.
+
+## [2026-09-02] change | Earn medium pick 3: 2-hit 0.8× → 1.0×
+
+- summary: wiki/domain/keno-xtreme-medium.md
+- touched: games/luma-keno/solve_paytables.py (`MEDIUM_EARN_TOP[3]` 39.3→37.8),
+  games/luma-keno/paytables.json, library/ (medium_pick_3_earn),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json
+- notes: 2-of-3 was an LDW at 0.8× (13.4% of rounds). Raising it to 1.0×
+  costs 3.3pp; the 3/3 pin drops 39.3→37.8 so RTP stays 0.9650. How-to
+  151.2× still above Off 60.3×. Shape lock clean. par-sheet 0 hard failures.
+
+## [2026-09-02] change | Earn pick_1 hit ladder (per-risk Pulse chance)
+
+- summary: wiki/codebase/luma-keno.md, wiki/concepts/keno-paytable-generation.md
+- touched: games/luma-keno/keno_pick_one.py (`PULSE_CHANCE_PICK_ONE_PCT`,
+  miss pinned to `PICK_ONE_MISS`), games/luma-keno/solve_paytables.py
+  (`--earn-pick-one`), games/luma-keno/run_earn_pick_one.py,
+  games/luma-keno/paytables.json, library/ (12 pick_1 Earn/buy books),
+  web/src/lib/keno/round.ts, web/src/lib/keno/copy.ts,
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json
+- notes: Pulse stays ×2. A shared 10% chance on pick_1 admits only
+  `[0.5, 2.1]`. Per-risk pick_1 chance 10/4/12/6% plus pinned miss lands
+  2.1 / 2.4 / 2.9 / 3.2 at RTP 0.9630–0.9649. Applying those chances to
+  picks 2–10 blew classic_pick_10_earn RTP (0.9254). HUD idle Pulse
+  follows pick count. rgs_verification PASS; par-sheet 0 hard failures,
+  spread 0.28pp; typecheck + verify-copy OK.
+
+## [2026-09-02] change | Pulse unified at ×2 (Earn pick_1 4-way tie)
+
+- summary: wiki/codebase/luma-keno.md, wiki/domain/keno-xtreme-medium.md,
+  wiki/concepts/keno-paytable-generation.md
+- touched: games/luma-keno/keno_pick_one.py (`PULSE_BOOST` medium 3→2),
+  games/luma-keno/solve_paytables.py (`--earn-medium` / `--buy-medium`;
+  How-to factor 6→4), games/luma-keno/run_medium.py, games/luma-keno/paytables.json,
+  library/ (medium Earn + buy books/LUTs), web/src/lib/keno/round.ts,
+  web/src/lib/keno/copy.ts, web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json,
+  wiki/codebase/luma-keno.md, wiki/domain/keno-xtreme-medium.md,
+  wiki/concepts/keno-paytable-generation.md, wiki/index.md,
+  .cursor/skills/keno-math/SKILL.md, .cursor/skills/keno-math/events.md
+- notes: Medium was the only Pulse ×3. Dropping it to ×2 makes all four
+  Earn pick_1 lattices identical (coeff 0.75/0.28). Shipped row is
+  `[0.5, 2.1]` rtp 0.9630 std 0.909 How-to 8.4× on every risk. The other
+  in-band pair `[0.8, 1.3]` fails STD 0.62. A strict low<classic<medium<high
+  advertised hit is unreachable on the 0.1× grid inside MODE_RTP_BAND.
+  Medium picks 8–10 How-to 30000× → 20000×. Buy JSON caps rise (1500→2250,
+  300→450) because MAX_PAYOUT_ABS / (Pulse × cost) loosened; vs-debit
+  How-to stays 4500× / 900×. RTP 0.9630–0.9656. rgs_verification PASS;
+  par-sheet 0 hard failures, spread 0.28pp; typecheck + verify-copy OK.
+
+## [2026-09-02] change | Earn `low` leftover-share (Easy analogue)
+
+- summary: wiki/domain/keno-xtreme-easy.md, wiki/codebase/luma-keno.md,
+  wiki/concepts/keno-paytable-generation.md
+- touched: games/luma-keno/easy_earn_low.py (new), games/luma-keno/solve_paytables.py
+  (`--earn-low` bakes EASY_EARN_LOW), games/luma-keno/run_earn_low.py,
+  games/luma-keno/lock_exemptions.py (picks 4/7 lock-clean; 8–10 named),
+  games/luma-keno/paytables.json, library/ (earn low books/LUTs),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json, wiki/domain/keno-xtreme-easy.md,
+  wiki/codebase/luma-keno.md, wiki/concepts/keno-paytable-generation.md,
+  wiki/index.md, .cursor/skills/keno-math/SKILL.md
+- notes: Same HUD zeros as Off `low`, leftover-share on Earn coefficients
+  (Lumen ×2 × Pulse ×2). Advertised body cheaper so How-to ≥ Off. Picks
+  2–4 snap max above Off (no in-window pair at 4.7 / 10.4 / 22.5). Picks
+  8–10 advertise 100× (How-to 400×) — a lock-clean restair at that top is
+  unreachable (RTP ceiling ~0.45). std 1.8–3.1 (LOW). RTP 0.9630–0.9651.
+  rgs_verification PASS; par-sheet 0 hard failures, spread 0.315pp.
+  verify-front-math not rerun (web script still in merge conflict).
+
 ## [2026-09-02] change | Off `high` picks 5–8 std-18.3 envelope
 
 - summary: wiki/domain/keno-xtreme-hard.md, wiki/codebase/luma-keno.md
