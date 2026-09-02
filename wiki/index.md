@@ -4,7 +4,7 @@ tags: [meta]
 updated: 2026-09-02
 source_count: 7
 page_count: 21
-last_change: 2026-09-02 Earn classic 8/9/10 flat 1000× → 750 < 900 < 1000 (Off climb).
+last_change: 2026-09-02 Earn high 5–7 flattened (209×/1127×/60× cliffs → 10–15× steps).
 ---
 
 # Math SDK Wiki

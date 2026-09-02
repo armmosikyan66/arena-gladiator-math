@@ -121,16 +121,23 @@ MEDIUM_EARN_TOP = {
 # (100000 advertised is the old solver pin, not this HUD copy). Dashboard
 # MAX_PAYOUT_ABS[1.0]=100000 so advertised * 4 <= 100000, advertised <= 25000.
 # Off pick 10 is 50000; Earn cannot pin 50000 (How-to would be 200000).
-# Ship the highest in-window advertised <= 25000. How-to 100000 vs Off 50000.
+# 9/9 pins 12500 (not 25000) so the HUD climbs 6100 < 12500 < 25000; a flat
+# 25000 = 25000 made 9/9 the equal of 10/10 for 5x the catch odds.
 HIGH_EARN_TOP = {
     2: 11.9,      # Off 16.7 blows RTP; max in-window. How-to 47.6 >= Off
     3: 35.1,      # Off 71.6 blows RTP/hit/etl; How-to 140.4 >= Off
     4: 122.5,     # Off 382.4 blows etl40; How-to 490 >= Off
-    5: 439.3,     # Off 900 (std envelope); How-to 1757.2 >= Off
-    6: 2028.7,    # Off 2200; How-to 8114.8 >= Off
-    7: 4582.0,    # Off 5500; How-to 18328 >= Off
+    5: 229.3,     # Off 900 (std envelope). Was 439.3: 2.1 -> 439.3 was a
+                  # 209x cliff. 229.3 gives 15.5 -> 229.3 (14.8x), How-to
+                  # 917.2 >= Off 900. Row pinned as a restair.
+    6: 552.8,     # Off 2200. Was 2028.7: 1.8 -> 2028.7 was a 1127x cliff.
+                  # 552.8 gives 55.2 -> 552.8 (10.0x), How-to 2211.2 >= Off.
+                  # Row pinned as a restair.
+    7: 1468.8,    # Off 5500. Was 4582: 75.8 -> 4582 was a 60x cliff.
+                  # 1468.8 gives 144.1 -> 1468.8 (10.2x), How-to 5875.2 >=
+                  # Off 5500. Row pinned as a restair.
     8: 6100.0,    # Off 6100 (std envelope). Old 11122.6 sat over Off.
-    9: 25000.0,   # Off 40000; advertised under Off, How-to 100000 above
+    9: 12500.0,   # Off 40000; was 25000 (flat with 10). How-to 50000 > Off
     10: 25000.0,  # Off 50000; cannot pin 50000 (How-to 200000 vs 100k cap)
 }
 
@@ -2322,8 +2329,13 @@ def patch_earn_high(paytables_path: str | None = None) -> dict:
     failures: dict[str, list[str]] = {}
     for k in PICKS:
         name = f"high_pick_{k}_earn"
+        pinned = scaled_row_for("earn", "high", k)
         if k == 1:
             table, errors = pick_one_row_earn("high"), []
+        elif pinned is not None:
+            # Restaired by hand and held under the shape lock; re-solving it
+            # would re-pack the body cells the restair spread out.
+            table, errors = pinned, []
         else:
             table, errors = solve_table("high", k, True, False, 1.0, False, None)
         stats = mode_stats_for("high", k, table, True, False, False, 1.0, None)
@@ -2333,11 +2345,14 @@ def patch_earn_high(paytables_path: str | None = None) -> dict:
         off_top = max(off_high[str(k)])
         settled_top = stats["max_m"]
         advertised_top = max(table)
-        # k>=9 advertised >= 25000 (cap pin holds). k=8 pins to Off 6100
-        # (std envelope). k=5-7 advertised under Off, How-to >= Off.
-        # k=2-4 lattice under Off advertised; How-to >= Off.
+        # k>=9 advertised >= 25000 would be flat; 9 pins 12500 so the HUD
+        # climbs 6100 < 12500 < 25000. k=8 pins to Off 6100 (std envelope).
+        # k=5-7 advertised under Off, How-to >= Off. k=2-4 lattice under Off
+        # advertised; How-to >= Off.
         if k >= 9:
             pin_floor = min(off_top, 25000.0)
+            if k == 9:
+                pin_floor = HIGH_EARN_TOP[9]
             if advertised_top + 1e-9 < pin_floor:
                 fails.append(
                     f"advertised top {advertised_top:.1f}x < pin {pin_floor:.1f}x"
@@ -2357,6 +2372,15 @@ def patch_earn_high(paytables_path: str | None = None) -> dict:
             f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
         )
         print(f"{'':20s} {table}")
+    prev_k, prev_top = None, None
+    for k in PICKS:
+        top = max(tables[str(k)])
+        if prev_top is not None and top + 1e-9 < prev_top:
+            failures.setdefault(f"high_pick_{k}_earn", []).append(
+                f"advertised max {top:g}x < pick {prev_k} {prev_top:g}x "
+                "(HUD maxes must climb with pick count)"
+            )
+        prev_k, prev_top = k, top
     if failures:
         raise SystemExit(f"earn high gate failures: {failures}")
     doc["earn"]["high"] = tables

@@ -33,6 +33,33 @@ RESTAIRED: dict[tuple[str, str, int], list[float]] = {
     # the Off-matching 900x top (8/8 750 < 9/9 900 < 10/10 1000; How-to 3600).
     # solve_row output, lock-clean, rtp 0.9634 inside the window.
     ("earn", "classic", 9): [2.0, 5.8, 15.9, 42.3, 112.5, 900.0],
+    # Earn high 8 was solver-packed at the 6100 pin: 30.3 -> 324.7 was a
+    # 10.72x mid cliff and the last catch 18.79x broke the 8-15x band. The
+    # restair moves the wall to 0.5 -> 8.7 (17.4x wall allowance) and holds
+    # the last catch at exactly 15x. Lock-clean, rtp 0.9651.
+    ("earn", "high", 8): [0.2, 0.5, 8.7, 52.0, 406.7, 6100.0],
+    # Earn high 9 at the new 12500 pin: solver rows pack the 6->7 body pair,
+    # this uniform ~5-6x ladder keeps the last catch at 15x. How-to 50000
+    # > Off 40000. Lock-clean, rtp 0.9654.
+    ("earn", "high", 9): [0.6, 4.7, 23.5, 129.6, 833.4, 12500.0],
+    # Earn high 10 was 1.0 / 2.6 / 8 / 44.3 / 371.7 / 521.6 / 25000: 371.7
+    # -> 521.6 is a 1.40x pair the HUD renders as one cell, then a 47.93x
+    # cliff into the cap-pinned jackpot. Restair reads as a uniform ladder,
+    # last catch 14.67x inside the band. Lock-clean, rtp 0.9630.
+    ("earn", "high", 10): [0.2, 0.9, 14.6, 71.5, 349.3, 1703.9, 25000.0],
+    # Earn high 5 was 1.6 / 2.1 / 439.3: the 4-of-5 body cell parked at 2.1x
+    # (below a real win) and then cliffed 209x into the jackpot. Lowering the
+    # top to the How-to floor (229.3, settles 917.2 >= Off 900) funds a real
+    # 3-cell ladder: 2.4 -> 15.5 -> 229.3, last step 14.8x. rtp 0.9653.
+    ("earn", "high", 5): [2.4, 15.5, 229.3],
+    # Earn high 6 was 1.0 / 1.3 / 1.8 / 2028.7: three sub-2x consolation cells
+    # then a 1127x cliff. 552.8 (How-to 2211.2 >= Off 2200) funds
+    # 0.5 / 7.5 / 49.7 -> 552.8, last 11.1x. rtp 0.9645.
+    ("earn", "high", 6): [0.5, 7.5, 49.7, 552.8],
+    # Earn high 7 was 0.8 / 2.2 / 9.2 / 75.8 / 4582: a 60x last catch on top
+    # of an already-cliffing 8.24x mid pair. 1468.8 (How-to 5875.2 >= Off
+    # 5500) keeps the 8x wall once and ends 144.1 -> 1468.8 (10.2x). rtp 0.9642.
+    ("earn", "high", 7): [0.3, 2.4, 19.2, 144.1, 1468.8],
 }
 
 

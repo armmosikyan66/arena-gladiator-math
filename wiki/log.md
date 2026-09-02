@@ -2,6 +2,47 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-02] change | Earn high picks 5–7: flatten 209× / 1127× / 60× full-card cliffs
+
+- summary: wiki/domain/keno-xtreme-hard.md
+- touched: games/luma-keno/solve_paytables.py (`HIGH_EARN_TOP[5/6/7]`
+  439.3/2028.7/4582 → 229.3/552.8/1468.8), games/luma-keno/restaired_rows.py
+  (earn.high 5/6/7), games/luma-keno/run_earn_high_picks_5to10.py,
+  games/luma-keno/paytables.json, library/ (high_pick_{5..10}_earn),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  web/src/data/keno-par-sheet.json
+- notes: Picks 5-7 parked sub-2x consolation bodies (5: 1.6/2.1, 6:
+  1.0/1.3/1.8) then cliffed into the jackpot (209x / 1127x / 60x). solve_row
+  cannot build shallow rows (its constructor assumes a banded final catch,
+  freed below pick 8), so rows were seeded by hand and walked into the window
+  with _repair_rtp. New tops sit at the How-to floor (229.3 -> 917.2 >= Off
+  900; 552.8 -> 2211.2 >= Off 2200; 1468.8 -> 5875.2 >= Off 5500) - the
+  released jackpot budget funds real ladders, last steps 14.8x / 11.1x /
+  10.2x, lock-clean. Picks 2-4 keep their single-catch step (119x/25x/77x):
+  no body to spend on, Off is steeper (pick 2 is a lone 16.7x). Hierarchy
+  229 < 553 < 1469 < 6100 < 12500 < 25000. rgs_verification PASS;
+  verify-front-math 160/160; par-sheet 0 hard failures, spread 0.28pp.
+
+## [2026-09-02] change | Earn high 9/10: flat 25000× → 6100 < 12500 < 25000; restairs 8–10
+
+- summary: wiki/domain/keno-xtreme-hard.md
+- touched: games/luma-keno/solve_paytables.py (`HIGH_EARN_TOP[9]` 25000→12500,
+  restair pins + advertised-max climb gate in `patch_earn_high`),
+  games/luma-keno/restaired_rows.py (earn.high 8/9/10),
+  games/luma-keno/lock_exemptions.py (drop earn.high 8/9/10 grandfathers),
+  games/luma-keno/run_earn_high_picks_8910.py, games/luma-keno/paytables.json,
+  library/ (high_pick_{8,9,10}_earn), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json
+- notes: Same two defects as classic 9/10: flat 25000 = 25000 advertised maxes
+  (9/9 equals 10/10 at 5x the catch odds), and solver rows that packed mid
+  pairs then cliffed into the jackpot (9/9 8->9 was 40.9x, 10/10 9->10 was
+  47.9x with a 1.40x 371.7->521.6 pair; 8/8 6->7 was 10.7x mid). 9/9 pins
+  12500 (How-to 50000 > Off 40000). 8/9/10 pinned as lock-clean restairs
+  (last catches 15.0 / 15.0 / 14.7); grandfathers dropped. Pick 5/6 keep
+  their shallow-card cliffs (1.8 -> 2028.7) - k < 8 frees the last catch and
+  no lock-clean row exists in window at any probed top. rgs_verification
+  PASS; verify-front-math 160/160; par-sheet 0 hard failures, spread 0.28pp.
+
 ## [2026-09-02] change | Earn classic 8/9/10: flat 1000× → Off climb 750 < 900 < 1000
 
 - summary: wiki/domain/keno-xtreme-classic.md
