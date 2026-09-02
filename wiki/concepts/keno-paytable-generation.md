@@ -232,9 +232,14 @@ Once zeros, max, and RTP 0.9650 are locked, the geometric body is
 unique. High pick 10 at 50,000× still rates MEDIUM (std ~11): the
 jackpot has **no part** in the variance (top share ~2.5%). Body nudges
 move std by <0.1. Extra zeros (first pay h=5) only reach std ~13.
-Do **not** retarget 96.5% or invent a second shape to chase a label —
-the label is the math. Low risk stays LOW (std 0.8–2.0) for the same
-reason: the HUD body is frequent and small.
+Do **not** retarget 96.5% or invent a second shape to chase a label on
+picks 9–10.
+
+The lever that *does* move the dashboard is a smaller max on picks
+where `P(k)·M²` still binds — high 5–8. Those sit on the **std-18.3
+envelope** (900 / 2200 / 5500 / 6100) so they rate HIGH, not EXTREME.
+`easy_off_high.py` asserts `std ≤ 18.5` on those four picks. Low risk
+stays LOW (std 0.8–2.0) because the HUD body is frequent and small.
 
 ## Earn and buy are not this generator
 

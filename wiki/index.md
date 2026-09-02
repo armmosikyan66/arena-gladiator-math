@@ -52,7 +52,7 @@ _Vendor and external docs, summarized — not copied._
 - [[domain/keno-xtreme-easy]] — Keno Xtreme Easy pick 1–10 hit multipliers (HUD) + the shipped luma-keno Off `low` snap (0.9635–0.9653).
 - [[domain/keno-xtreme-classic]] — Keno Xtreme Classic pick 1–10 hit multipliers (HUD).
 - [[domain/keno-xtreme-medium]] — Keno Xtreme Medium HUD + shipped luma-keno Off `medium` geometric snap (0.9647–0.9654).
-- [[domain/keno-xtreme-hard]] — Keno Xtreme Hard HUD + shipped luma-keno Off `high` geometric snap (0.9635–0.9654).
+- [[domain/keno-xtreme-hard]] — Keno Xtreme Hard HUD + shipped luma-keno Off `high` (picks 5–8 std-18.3 envelope; 9–10 keep 40k/50k).
 
 ## Concepts
 

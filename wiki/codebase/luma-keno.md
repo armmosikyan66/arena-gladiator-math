@@ -401,9 +401,10 @@ Keno Xtreme **Hard** (docx: Degen) is [[sources/keno-xtreme-hard-hud]]
 [[concepts/keno-paytable-generation]] Algorithm A (same geometric ladder
 as classic/medium). Jackpot-or-bust. Competitor pick 1 is even money
 `0.00/4.00`; luma-keno pick_1 stays the miss-bonus lattice `[0.1, 3.5]`.
-Picks **2–6 HUD tops are player-favor** (pick 3 at 500× is ~614% RTP) —
-Off ships the highest in-window / gate-legal max instead. Picks 6–10 keep
-the HUD jackpots; 10/10 stays **50,000×**.
+Picks **2–4 HUD tops are player-favor** (pick 3 at 500× is ~614% RTP) —
+Off ships the highest in-window / gate-legal max instead. Picks **5–8**
+sit on the std-18.3 envelope (HIGH, not EXTREME): **900 / 2200 / 5500 /
+6100**. Picks 9–10 keep the HUD jackpots; 10/10 stays **50,000×**.
 
 Competitor HUD:
 
@@ -428,10 +429,10 @@ Competitor HUD:
 | **2** | 0.00 | 0.00 | 16.70 | | | | | | | | |
 | **3** | 0.00 | 0.00 | 0.70 | 71.60 | | | | | | |
 | **4** | 0.00 | 0.00 | 0.00 | 2.20 | 382.4 | | | | | |
-| **5** | 0.00 | 0.00 | 0.00 | 0.10 | 8.00 | 2297.8 | | | | |
-| **6** | 0.00 | 0.00 | 0.00 | 0.30 | 7.40 | 214.5 | 6000 | | | |
-| **7** | 0.00 | 0.00 | 0.00 | 0.30 | 4.10 | 59.80 | 865.6 | 12500 | | |
-| **8** | 0.00 | 0.00 | 0.00 | 0.20 | 2.50 | 23.70 | 242.6 | 2464.1 | 25000 | |
+| **5** | 0.00 | 0.00 | 0.00 | 2.30 | 45.70 | 900 | | | | |
+| **6** | 0.00 | 0.00 | 0.00 | 1.20 | 14.30 | 178.7 | 2200 | | | |
+| **7** | 0.00 | 0.00 | 0.00 | 0.60 | 6.20 | 59.10 | 570.4 | 5500 | | |
+| **8** | 0.00 | 0.00 | 0.00 | 0.60 | 3.80 | 23.90 | 152.0 | 964.2 | 6100 | | |
 | **9** | 0.00 | 0.00 | 0.00 | 0.20 | 1.60 | 11.70 | 90.80 | 690.2 | 5252.2 | 40000 |
 | **10** | 0.00 | 0.00 | 0.00 | 0.20 | 1.20 | 6.70 | 40.20 | 240.3 | 1424.6 | 8436.9 | 50000 |
 

@@ -125,10 +125,10 @@ HIGH_EARN_TOP = {
     2: 11.9,      # Off 16.7 blows RTP; max in-window. How-to 47.6 >= Off
     3: 35.1,      # Off 71.6 blows RTP/hit/etl; How-to 140.4 >= Off
     4: 122.5,     # Off 382.4 blows etl40; How-to 490 >= Off
-    5: 439.3,     # Off 2297.8; How-to floor 448.1 is cvar 714. How-to 1757.2 < Off
-    6: 2028.7,    # Off 6000 blows RTP/std; How-to 8114.8 >= Off
-    7: 4582.0,    # Off 12500 blows etl_sum/std; How-to 18328 >= Off
-    8: 11122.6,   # Off/cap 25000 is std 121.9; max std<=55. How-to 44490 >= Off
+    5: 439.3,     # Off 900 (std envelope); How-to 1757.2 >= Off
+    6: 2028.7,    # Off 2200; How-to 8114.8 >= Off
+    7: 4582.0,    # Off 5500; How-to 18328 >= Off
+    8: 6100.0,    # Off 6100 (std envelope). Old 11122.6 sat over Off.
     9: 25000.0,   # Off 40000; advertised under Off, How-to 100000 above
     10: 25000.0,  # Off 50000; cannot pin 50000 (How-to 200000 vs 100k cap)
 }
@@ -2290,11 +2290,9 @@ def patch_earn_high(paytables_path: str | None = None) -> dict:
         off_top = max(off_high[str(k)])
         settled_top = stats["max_m"]
         advertised_top = max(table)
-        # k>=9 advertised >= 25000 (cap pin holds). k=8 25000 is std 121.9
-        # vs the 55 gate; max in-window 11122.6, How-to still >= Off 25000.
-        # k=6-7 Off pins blow RTP/std; advertised under Off, How-to >= Off.
+        # k>=9 advertised >= 25000 (cap pin holds). k=8 pins to Off 6100
+        # (std envelope). k=5-7 advertised under Off, How-to >= Off.
         # k=2-4 lattice under Off advertised; How-to >= Off.
-        # k=5 How-to floor 448.1 is cvar 714; max 439.3 How-to 1757.2 < Off.
         if k >= 9:
             pin_floor = min(off_top, 25000.0)
             if advertised_top + 1e-9 < pin_floor:

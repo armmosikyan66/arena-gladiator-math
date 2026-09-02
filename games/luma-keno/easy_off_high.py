@@ -12,16 +12,15 @@ must not paste those tops. Highest in-window / gate-legal maxes:
 - Pick 3: HUD 500 blows RTP and ETL40. Highest lattice-legal is 71.6
   (etl40 0.870 vs local 0.88).
 - Pick 4: HUD 1000 rejects; highest legal is 382.4 (etl40 0.879).
-- Pick 5: HUD 2500 rejects; highest legal is 2297.8 (etl40 0.880).
-- Picks 6–10 keep the HUD tops (6000 / 12500 / 25000 / 40000 / 50000).
-  Geometric leftover-fill keeps ETL40 / CVaR under the gates; the old
-  remainder-pack had to cut pick 6 to 3484.6.
-
-Dashboard volatility is base std, not max. Picks 5–8 rate EXTREME
-because P(k)·M² still moves variance. Picks 9–10 rate HIGH/MEDIUM
-(std ~18 / ~11) because the 40k–50k tops have almost no part in the
-variance (top share ~19% / ~2.5%). Body tweaks cannot chase a higher
-label without moving RTP, zeros, or max.
+- Pick 5: HUD 2500 rejects on ETL40; the std-18.3 envelope (HIGH, not
+  EXTREME) binds first at 900 (2297.8 was std 45).
+- Picks 6–8: HUD 6000 / 12500 / 25000 are the same EXTREME peak
+  (P(k)·M² still moves variance). Caps 2200 / 5500 / 6100 land std
+  18.2 / 18.1 / 10.0. Pick 8's jackpot is already too rare for a
+  HIGH label at any max under the Extreme boundary.
+- Picks 9–10 keep the HUD tops (40000 / 50000). Those cells have
+  almost no part in variance (top share ~19% / ~2.5%); labels stay
+  HIGH / MEDIUM. Do not cut them to chase a label.
 
 pick_1 stays lattice pick_one_row("high") = [0.1, 3.5] with the miss-bonus
 third tier (high is in PICK_ONE_BONUS_RISKS).
@@ -39,6 +38,9 @@ from keno_pick_one import MODE_RTP_BAND, STD_MIN, base_coeff, base_stats
 RTP_WINDOW = (0.9630, 0.9655)
 ETL40_CAP = 0.88
 CVAR_CAP = 700.0
+# Dashboard Extreme sits in (18.3, 25.73]. Picks 5–8 must stay under it.
+STD_LABEL_CAP = 18.5
+STD_LABEL_PICKS = frozenset({5, 6, 7, 8})
 
 #: Competitor Hard HUD rows: zeros/shape template only.
 HIGH_HUD = {
@@ -54,15 +56,17 @@ HIGH_HUD = {
 }
 
 #: Designed max ladder. Strictly increasing from pick_1 lattice max 3.5.
-#: Picks 2–5 cannot take the HUD tops (RTP / ETL40 / generator reject).
+#: Picks 2–4 cannot take the HUD tops (RTP / ETL40 / generator reject).
+#: Picks 5–8 sit on the std-18.3 envelope so the dashboard stays HIGH,
+#: not EXTREME. Picks 9–10 keep the Hard headlines.
 MAX_LADDER = {
     2: 16.7,
     3: 71.6,
     4: 382.4,
-    5: 2297.8,
-    6: 6000.0,
-    7: 12500.0,
-    8: 25000.0,
+    5: 900.0,
+    6: 2200.0,
+    7: 5500.0,
+    8: 6100.0,
     9: 40000.0,
     10: 50000.0,
 }
@@ -86,10 +90,10 @@ HIGH_OFF: dict[int, list[float]] = {
     2: [0.0, 0.0, 16.7],
     3: [0.0, 0.0, 0.7, 71.6],
     4: [0.0, 0.0, 0.0, 2.2, 382.4],
-    5: [0.0, 0.0, 0.0, 0.1, 8.0, 2297.8],
-    6: [0.0, 0.0, 0.0, 0.3, 7.4, 214.5, 6000.0],
-    7: [0.0, 0.0, 0.0, 0.3, 4.1, 59.8, 865.6, 12500.0],
-    8: [0.0, 0.0, 0.0, 0.2, 2.5, 23.7, 242.6, 2464.1, 25000.0],
+    5: [0.0, 0.0, 0.0, 2.3, 45.7, 900.0],
+    6: [0.0, 0.0, 0.0, 1.2, 14.3, 178.7, 2200.0],
+    7: [0.0, 0.0, 0.0, 0.6, 6.2, 59.1, 570.4, 5500.0],
+    8: [0.0, 0.0, 0.0, 0.6, 3.8, 23.9, 152.0, 964.2, 6100.0],
     9: [0.0, 0.0, 0.0, 0.2, 1.6, 11.7, 90.8, 690.2, 5252.2, 40000.0],
     10: [0.0, 0.0, 0.0, 0.2, 1.2, 6.7, 40.2, 240.3, 1424.6, 8436.9, 50000.0],
 }
@@ -146,6 +150,11 @@ def _validate() -> None:
         assert stats["cvar"] <= CVAR_CAP, (
             f"pick_{k}: cvar {stats['cvar']:.1f} over {CVAR_CAP}"
         )
+        if k in STD_LABEL_PICKS:
+            assert stats["std"] <= STD_LABEL_CAP, (
+                f"pick_{k}: std {stats['std']:.3f} over {STD_LABEL_CAP} "
+                "(dashboard Extreme band)"
+            )
 
 
 _validate()

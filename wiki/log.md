@@ -2,6 +2,24 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-02] change | Off `high` picks 5–8 std-18.3 envelope
+
+- summary: wiki/domain/keno-xtreme-hard.md, wiki/codebase/luma-keno.md
+- touched: games/luma-keno/easy_off_high.py (MAX_LADDER 900 / 2200 / 5500
+  / 6100; STD_LABEL_CAP 18.5), games/luma-keno/solve_paytables.py
+  (HIGH_EARN_TOP pick 8 = 6100), games/luma-keno/run_high.py,
+  games/luma-keno/paytables.json, library/ (high books/LUTs),
+  web/src/data/keno-paytables.json, web/src/data/keno-books.json,
+  wiki/domain/keno-xtreme-hard.md, wiki/codebase/luma-keno.md,
+  wiki/concepts/keno-paytable-generation.md, wiki/index.md,
+  .cursor/skills/keno-math/SKILL.md
+- notes: Cut the variance-binding maxes so Off high 5–8 rate HIGH, not
+  EXTREME. RTP stays 0.9647–0.9650. Picks 9–10 keep 40k / 50k (std 17.7 /
+  11.0). Pick 8 at 6100 is std 10.0 — jackpot already too rare for HIGH.
+  Earn pick 8 advertised down to Off 6100. Other risks untouched.
+  rgs_verification PASS; verify-front-math 160/160; par-sheet 0 hard
+  failures, spread 0.315pp.
+
 ## [2026-09-02] change | Off pick_1 miss-bonus restored (dashboard Cross-Mode)
 
 - summary: wiki/concepts/keno-paytable-generation.md, wiki/domain/keno-xtreme-classic.md
