@@ -2,6 +2,39 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-02] change | Earn classic 8/9/10: flat 1000× → Off climb 750 < 900 < 1000
+
+- summary: wiki/domain/keno-xtreme-classic.md
+- touched: games/luma-keno/solve_paytables.py (`CLASSIC_EARN_TOP[8/9]`
+  1000→750/900), games/luma-keno/restaired_rows.py (pin earn.classic.9),
+  games/luma-keno/lock_exemptions.py (drop earn.classic.9 grandfather),
+  games/luma-keno/run_earn_classic_picks_89.py, games/luma-keno/paytables.json,
+  library/ (classic_pick_{8,9}_earn), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json,
+  web/src/components/keno/paytable-panel.tsx (stackLine Base × displayMultiplier,
+  verify-front-math source check)
+- notes: 1000=1000=1000 was ceiling-flatten, not invert, but equal maxes make
+  8/8 the better jackpot hunt than 10/10 for the same prize. Off and the
+  Xtreme HUD climb 750/900/1000, so Earn copies it: How-to 3000/3600/4000.
+  Pick 8 solves lock-clean from the pin (last 8.0×, rtp 0.9651). Pick 9's
+  solver packs at 900 (80→118.5 = 1.48× mid pair), so it is pinned as a
+  restair — solve_row uniform ~2.7× ladder, last 8.0×, rtp 0.9634 — and its
+  grandfather dropped. rgs_verification PASS; verify-front-math 160/160;
+  par-sheet 0 hard failures, spread 0.28pp.
+
+## [2026-09-02] change | Earn classic pick 6: flatten 9.9× → 200× cliff
+
+- summary: wiki/domain/keno-xtreme-classic.md
+- touched: games/luma-keno/solve_paytables.py (`CLASSIC_EARN_TOP[6]` 200→80,
+  How-to vs Off identity, advertised-max climb gate),
+  games/luma-keno/lock_exemptions.py (drop earn.classic.6 grandfather),
+  games/luma-keno/run_earn_classic_pick_6.py, games/luma-keno/paytables.json,
+  library/ (classic_pick_6_earn), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json
+- notes: Same Medium-style last-step cliff (9.9 -> 200 = 20x). How-to floor
+  50× would invert vs pick 5's 75×. Pin 80× (last 6.9, How-to 320 ≥ Off 200,
+  75 < 80 < 600). RTP 0.9650. 8/9/10 stay 1000× (Classic ceiling, not inverted).
+
 ## [2026-09-02] change | Earn medium pick 10: 1250× → 4000× (HUD 8<9<10)
 
 - summary: wiki/domain/keno-xtreme-medium.md, wiki/codebase/luma-keno.md

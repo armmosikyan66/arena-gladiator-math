@@ -4,7 +4,7 @@ tags: [meta]
 updated: 2026-09-02
 source_count: 7
 page_count: 21
-last_change: 2026-09-02 Earn medium 8/8 2000 < 9/9 3000 < 10/10 4000.
+last_change: 2026-09-02 Earn classic 8/9/10 flat 1000× → 750 < 900 < 1000 (Off climb).
 ---
 
 # Math SDK Wiki

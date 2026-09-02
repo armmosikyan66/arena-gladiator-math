@@ -86,19 +86,20 @@ from restaired_rows import scaled_row_for
 # card settles 400x. JACKPOT_TOP's 20,000x settled pin must not steal Easy.
 EASY_EARN_LOW_TOP = {k: EARN_LOW_MAX[k] for k in range(3, 11)}
 
-# Earn `classic` HUD analogue. Off classic maxes 5.4..1000. Picks 3-7 pin at
-# that pick's Off max; picks 8-10 advertise 1000x so Lumen x2 x Pulse x2
-# settles 4000x. JACKPOT_TOP must not steal the Classic ceiling.
+# Earn `classic` HUD analogue. Off classic maxes 5.4..1000. Picks 3-5 and 7
+# pin at that pick's Off max; pick 6 advertised 80x so 5-of-6 is not a 20x
+# cliff. Picks 8-10 copy Off's climb (750 < 900 < 1000) so How-to settles
+# 3000 / 3600 / 4000. JACKPOT_TOP must not steal the Classic ceiling.
 # 2026-09-01: Off picks 3-6 cut 40/100/300/500 → 17.5/30/75/200.
 CLASSIC_EARN_TOP = {
     3: 17.5,   # Off 17.5
     4: 30.0,   # Off 30
     5: 75.0,   # Off 75
-    6: 200.0,
+    6: 80.0,    # Off 200. 200 left 9.9 -> 200 (20x). 50 How-to-floor inverts vs pick 5's 75; 80 last 6.9, How-to 320
     7: 600.0,
-    8: 1000.0,
-    9: 1000.0,
-    10: 1000.0,
+    8: 750.0,   # Off 750. Was 1000 (flat with 9/10). Climb 8<9<10. How-to 3000
+    9: 900.0,   # Off 900. Was 1000. How-to 3600
+    10: 1000.0, # Off 1000. Classic ceiling. How-to 4000
 }
 
 # Earn medium: Pulse x2, Lumen x2, How-to = advertised x4. Tops are the
@@ -2397,12 +2398,8 @@ def patch_earn_classic(paytables_path: str | None = None) -> dict:
         off_top = max(off_classic[str(k)])
         settled_top = stats["max_m"]
         advertised_top = max(table)
-        # Jackpot picks 8-10 and mid picks 6-7 must not advertise below Off.
-        # Picks 3-5 pin at the cut Off maxes (26.5 / 49.5 / 150).
-        if k >= 6 and advertised_top + 1e-9 < off_top:
-            fails.append(
-                f"advertised top {advertised_top:.1f}x < Off {off_top:.1f}x"
-            )
+        # Advertised may sit under Off (Lumen x2 x Pulse x2). How-to vs Off
+        # is the identity; pinning advertised >= Off packed pick 6 as 9.9 -> 200.
         if settled_top + 1e-9 < off_top:
             fails.append(
                 f"settled How-to {settled_top:.1f}x < Off {off_top:.1f}x"
@@ -2418,6 +2415,15 @@ def patch_earn_classic(paytables_path: str | None = None) -> dict:
             f"{'FAIL ' + '; '.join(fails) if fails else 'ok'}"
         )
         print(f"{'':20s} {table}")
+    prev_k, prev_top = None, None
+    for k in PICKS:
+        top = max(tables[str(k)])
+        if prev_top is not None and top + 1e-9 < prev_top:
+            failures.setdefault(f"classic_pick_{k}_earn", []).append(
+                f"advertised max {top:g}x < pick {prev_k} {prev_top:g}x "
+                "(HUD maxes must climb with pick count)"
+            )
+        prev_k, prev_top = k, top
     if failures:
         raise SystemExit(f"earn classic gate failures: {failures}")
     doc["earn"]["classic"] = tables

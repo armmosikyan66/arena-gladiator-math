@@ -27,6 +27,12 @@ RESTAIRED: dict[tuple[str, str, int], list[float]] = {
     # and every win above it steps >= 2.5x. Advertised top holds 1000x, which
     # is what keeps Earn classic level with Off classic at pick 10.
     ("earn", "classic", 10): [0.7, 0.9, 2.3, 6.0, 16.0, 45.0, 120.0, 1000.0],
+    # Was 1 / 4.4 / 28.4 / 79.8 / 120 / 1000 at the flat 1000x pin: 80 -> 120
+    # was a 1.48x mid pair the HUD renders as one cell, and the body packed
+    # onto hit 6 (41.8% of return). Restaired to the uniform ~2.7x ladder at
+    # the Off-matching 900x top (8/8 750 < 9/9 900 < 10/10 1000; How-to 3600).
+    # solve_row output, lock-clean, rtp 0.9634 inside the window.
+    ("earn", "classic", 9): [2.0, 5.8, 15.9, 42.3, 112.5, 900.0],
 }
 
 

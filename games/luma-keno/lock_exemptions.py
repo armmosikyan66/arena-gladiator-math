@@ -125,7 +125,7 @@ GRANDFATHERED: frozenset[tuple[str, str, int]] = frozenset(
         ("risks", "low", 8), ("risks", "low", 9), ("risks", "low", 10),
         ("risks", "classic", 7), ("risks", "classic", 8), ("risks", "classic", 9),
         ("risks", "medium", 8), ("risks", "medium", 9),
-        ("earn", "classic", 5), ("earn", "classic", 6), ("earn", "classic", 9),
+        ("earn", "classic", 5),
         ("earn", "high", 8), ("earn", "high", 9), ("earn", "high", 10),
         ("buy10", "low", 6), ("buy10", "low", 9), ("buy10", "low", 10),
         ("buy10", "classic", 9), ("buy10", "classic", 10),
