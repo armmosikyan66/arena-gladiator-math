@@ -98,6 +98,25 @@ EXEMPTIONS: dict[tuple[str, str, int], Exemption] = {
         retire_by="raise the advertised top to ~800-1000x, or carry fewer tiers",
         owner="ops",
     ),
+    ("buy10", "low", 10): Exemption(
+        rules=("last_catch",),
+        reason=(
+            "Easy buy pick10 softens the ×8 last-catch floor to ×5 (40→200) so the "
+            "final catch is not a cliff on the smooth low ladder. RTP stays in window; "
+            "shape_lock last_catch_min=8 would force pen≤25."
+        ),
+        retire_by="raise the buy low pick10 top above 320x, or keep the ×8 floor",
+        owner="math",
+    ),
+    ("buy100", "low", 10): Exemption(
+        rules=("last_catch",),
+        reason=(
+            "Same Easy buy pick10 soft last-catch as buy10 (shared advertised ladder "
+            "or buy100 twin); ×5 final step under last_catch_min=8."
+        ),
+        retire_by="raise the buy low pick10 top above 320x, or keep the ×8 floor",
+        owner="math",
+    ),
     ("earn", "medium", 10): Exemption(
         rules=("ratio_min_mid", "last_catch"),
         reason=(
@@ -126,7 +145,6 @@ GRANDFATHERED: frozenset[tuple[str, str, int]] = frozenset(
         ("risks", "classic", 7), ("risks", "classic", 8), ("risks", "classic", 9),
         ("risks", "medium", 8), ("risks", "medium", 9),
         ("earn", "classic", 5),
-        ("buy10", "low", 6), ("buy10", "low", 9), ("buy10", "low", 10),
         ("buy10", "classic", 9), ("buy10", "classic", 10),
         ("buy10", "medium", 6), ("buy10", "medium", 8),
         ("buy10", "high", 8), ("buy10", "high", 9), ("buy10", "high", 10),

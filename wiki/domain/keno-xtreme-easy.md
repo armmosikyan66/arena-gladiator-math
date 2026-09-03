@@ -24,6 +24,38 @@ Earn coefficients (`easy_earn_low.py`). Advertised body is cheaper so
 Lumen×2 × Pulse×2 settles How-to ≥ Off. Picks 8–10 advertise 100×
 (How-to 400×). std 1.8–3.1 (LOW).
 
+**Shipped 2026-09-02 (buy10):** buy10 `low` restairs picks 3/6/9/10
+(`restaired_rows.py`, cost units — 1.0 = chip price back). The solver's
+water-fill parked sub-refund consolation bodies the HUD renders as one
+cell (pick 6: 0.09/0.10, pick 9: 0.98/1.06) and pick 10 packed its
+approach (4.45 → 10 = 2.25×). Pick 3's top **cannot** reach the Off pin
+1.04 (147% RTP with the placed Lumen) or even beat pick 2 — 0.26 matches
+it, so the HUD max ladder climbs 2.6 → 2.6 → 22.5 → 36 → 40 → 60 → 70 →
+85 → 100 instead of inverting at pick 3 (was 2.1 under pick 2's 2.6).
+`patch_buy_low` now enforces that ladder as a gate. buy100 `low` keeps
+its carried rows pending the same probe on 100× Lumen.
+
+**Chip contract (audited 2026-09-02):** buy10 sells three guarantees and
+all three are encoded end-to-end — engine (`lumen_placed_on_pick` forces
+the marked pick into the ten, `extras_forced_reason` returns `bought`),
+books (`kenoStart.lumenPlaced/lumenBoost 10`, `kenoCatch.extraReason
+"bought"`, every pick-2–10 book `lumenHit: true`), and frontend
+(`lumenPlacedOnPick`, `lumenBoostFor`, buy-confirm copy). Verified across
+all 80 buy modes, 2,224 book rows. **Lumen = the chip's cost multiple
+(10×/100×) is the right practice here** — not the Earn ×2 — because the
+star is *guaranteed* to catch on picks 2–10, so the boost is not a
+minority channel: every paying round settles through it and the split is
+a constant 9.1% base / 81.8% Lumen / 9.1% Pulse (the 1:9:1 is pure
+arithmetic of a guaranteed ×10 with Pulse ×2 on 10%). The old objection
+("Lumen carries 90–99% of return through a minority channel") predates
+the placement guarantee and does not apply. A Lumen catch settles exactly
+at the displayed cell (identity verified in the books: `payout =
+row × 10 × 100`), and the cost-unit solve prices the always-on boost in,
+so advertised rows shrink to hold RTP 0.9634–0.9654 while tops stay
+pinned at Off max. `buy_chip_contract_gates` now blocks any buy-low solve
+that breaks the contract (boost ≠ cost, placement dropped, extras not
+forced) — negative-tested on all three failures.
+
 Off `low`:
 | k \ h | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | RTP |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

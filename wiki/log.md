@@ -2,6 +2,75 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-03] change | Buy Lumen hit-or-miss (not forced into the ten)
+- summary: wiki/codebase/luma-keno.md
+- touched: wiki/codebase/luma-keno.md, games/luma-keno/solve_paytables.py (`placed` docstring),
+  games/luma-keno/library/publish_files (buy LUTs from prior `run.py`),
+  web/src/data/keno-books.json (export_luts.py)
+- notes: Mark sits on a pick; catch is P=0.25 / P(hit|h)=h/k. Full card
+  always catches. Hit on a paying row pays BUY_LUMEN_BOOST; miss leaves
+  the base. Pulse ×2 stacks. Every buy mode now books both lumenHit
+  flags. The 2026-09-02 audit that "every pick 2-10 book catches" is
+  superseded. Frontend pipeline green. rgs_verification SHA OK on 160
+  modes; warning (not a hard fail) on high_pick_7_buy100 P5K 1.06% vs
+  1% 3-Star local gate.
+
+## [2026-09-02] change | buy10 chip contract: guarantees audited, Lumen = cost multiple ruled, gate added
+
+- summary: wiki/domain/keno-xtreme-easy.md
+- touched: games/luma-keno/solve_paytables.py (`buy_chip_contract_gates`,
+  wired into `patch_buy_low`; `spin_outcomes` import),
+  games/luma-keno/paytables.json (rows byte-identical after gate run)
+- notes: Audited what buy10 sells: (1) placed Lumen - the star sits on a
+  pick and is forced into the draw, so every pick 2-10 book catches
+  (lumen_books_for_hits returns [True] for hits>=1, h=0 has no books);
+  (2) forced extras - extras_forced_reason returns "bought", outranking
+  every earned reason; (3) Lumen x10 - BUY_LUMEN_BOOST equals the chip's
+  cost multiple, priced into the cost-unit coefficients. Verified in all
+  80 buy modes / 2,224 book rows (lumenPlaced, lumenBoost 10/100,
+  extraReason "bought", lumenHit true) and mirrored in the frontend
+  (round.ts lumenPlacedOnPick / lumenBoostFor / shownLumenBoost; copy.ts
+  buy-confirm text; paytable-panel stackLine). Best practice ruled:
+  Lumen = cost multiple is CORRECT for a guaranteed-catch star - the
+  channel fires on 100% of paying rounds (split 9.1/81.8/9.1
+  base/lumen/pulse, pure arithmetic of guaranteed x10 + Pulse x2 on 10%),
+  unlike the pre-2026-08-28 design where a cost-priced Lumen fired on a
+  minority of rounds and left the base table decorative. Display = settle
+  identity verified: a star catch pays exactly the displayed cell
+  (payout = row x 10 x 100). New gate blocks a buy-low solve that breaks
+  the contract (boost != cost / placement dropped / extras unforced);
+  negative-tested on all three failures, healthy rows byte-identical.
+  buy100 shares the same contract (its boost 100x = its cost), audited
+  in the same sweep.
+
+## [2026-09-02] change | buy10 low: restair 3/6/9/10, fix pick-3 inversion, climb gate
+
+- summary: wiki/domain/keno-xtreme-easy.md
+- touched: games/luma-keno/restaired_rows.py (buy10.low 3/6/9/10),
+  games/luma-keno/solve_paytables.py (`patch_buy_low` restair pins,
+  buy10 HUD-max climb gate, `--buy-low` CLI flag, `risk="low"` binding fix),
+  games/luma-keno/lock_exemptions.py (drop buy10.low 9/10 grandfathers),
+  games/luma-keno/run_buy_low_picks.py (books on the *buy* lattice:
+  `bought=True, placed=...`), games/luma-keno/paytables.json,
+  library/ (low_pick_{3,6,9,10}_buy10), web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json
+- notes: Audit in cost units (1.0 = chip price). Pick 3's shipped top 2.1
+  sat UNDER pick 2's 2.6 (inverted HUD max ladder); the Off pin 1.04 is
+  unreachable (147% RTP with placed Lumen), so 0.26 matches pick 2 exactly -
+  flat there, never inverted. Pick 6 packed 0.09/0.10, pick 9 packed
+  0.98/1.06, pick 10 approached its cap at 2.25x (4.45 -> 10) - all
+  restaired lock-clean (last catches 5.6x / 8.0x / 8.0x; top 10 ends
+  1.25 -> 10 at exactly the 8x wall). Tops stay pinned at Off max
+  (22.5/36/40/60/70/85/100) so the chip never raises the jackpot.
+  Rebuild gotcha: `book_count_for_picks` without `bought/placed` builds
+  the earn lattice under a buy name - LUT RTP 1.19-1.24 per cost, caught
+  by rgs_verification, fixed by passing both flags. Also earned.high.10
+  restair re-cut for the capped lock (1703.9 -> 25000 was 14.67x last
+  catch; solve_row gives 3125 -> 25000 at 8.00x, rtp 0.9655, unexplained
+  violations 7 -> 6). rgs_verification PASS (0 violations);
+  verify-front-math 160/160; par-sheet 0 hard failures, spread 0.28pp;
+  shape lock coverage 103/144.
+
 ## [2026-09-02] change | Earn high picks 5–7: flatten 209× / 1127× / 60× full-card cliffs
 
 - summary: wiki/domain/keno-xtreme-hard.md

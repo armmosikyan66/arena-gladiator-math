@@ -72,9 +72,35 @@ from keno_pick_one import (
     pick_one_std_earn,
     settled_rtp,
     settled_stats,
+    spin_outcomes,
 )
 from easy_off_low import EASY_OFF_LOW
 from easy_earn_low import EASY_EARN_LOW, MAX_LADDER as EARN_LOW_MAX
+from easy_buy_low import EASY_BUY_LOW, EASY_BUY_LOW_PICK1, JSON_MAX_LADDER, cost_row_for as easy_buy_cost_row
+from easy_buy_classic import (
+    EASY_BUY_CLASSIC,
+    EASY_BUY_CLASSIC_BUY100,
+    EASY_BUY_CLASSIC_PICK1,
+    JSON_MAX_LADDER as CLASSIC_BUY_JSON_MAX_LADDER,
+    cost_row_for as easy_buy_classic_cost_row,
+    json_max_for as classic_buy_json_max_for,
+)
+from easy_buy_medium import (
+    EASY_BUY_MEDIUM,
+    EASY_BUY_MEDIUM_BUY100,
+    EASY_BUY_MEDIUM_PICK1,
+    JSON_MAX_LADDER as MEDIUM_BUY_JSON_MAX_LADDER,
+    cost_row_for as easy_buy_medium_cost_row,
+    json_max_for as medium_buy_json_max_for,
+)
+from easy_buy_high import (
+    EASY_BUY_HIGH,
+    EASY_BUY_HIGH_BUY100,
+    EASY_BUY_HIGH_PICK1,
+    JSON_MAX_LADDER as HIGH_BUY_JSON_MAX_LADDER,
+    cost_row_for as easy_buy_high_cost_row,
+    json_max_for as high_buy_json_max_for,
+)
 from easy_off_classic import CLASSIC_OFF
 from easy_off_medium import MEDIUM_OFF
 from easy_off_high import HIGH_OFF
@@ -169,14 +195,14 @@ def is_easy_earn_high(
 def is_easy_buy_low(
     risk: str, earn: bool, buy: str | None, cost: float
 ) -> bool:
-    """Buy low Easy analogue: extras + catch, not a raised jackpot."""
+    """Buy low Easy analogue: extras + placed Lumen; tops may exceed Off."""
     return bool(earn and risk == "low" and buy in ("buy10", "buy100") and cost in (10.0, 100.0))
 
 
 def is_easy_buy_classic(
     risk: str, earn: bool, buy: str | None, cost: float
 ) -> bool:
-    """Buy classic: extras + catch, not a raised jackpot."""
+    """Buy classic Easy analogue: extras + placed Lumen; tops may exceed Off."""
     return bool(
         earn and risk == "classic" and buy in ("buy10", "buy100") and cost in (10.0, 100.0)
     )
@@ -201,76 +227,51 @@ def is_easy_buy_high(
 
 
 def easy_buy_low_top(k: int, cost: float) -> float | None:
-    """Cost-unit advertised pin so the JSON top equals Off low's max.
+    """Cost-unit advertised pin from easy_buy_low.JSON_MAX_LADDER.
 
-    The strip then matches Off (chip does not raise the jackpot). How-to vs
-    debit is Off_max * Lumen * Pulse / cost = 2 * Off_max, under Earn's 400x
-    at pick 10.
+    Tops are *not* pinned to Off Easy max. Picks 4–10 sit above Off Easy
+    (buy bonus); picks 2–3 stay at 2.6 under placed Lumen. How-to vs debit is
+    JSON_top * Lumen * Pulse / cost = 2 * JSON_top, capped at Earn Easy 400x
+    on picks 8–10 (pick 10 JSON 200 → 400x with Pulse).
     """
-    if k not in EASY_OFF_LOW:
+    if k not in JSON_MAX_LADDER:
         return None
-    return floor_grid(EASY_OFF_LOW[k][-1] / cost, cost)
+    return floor_grid(JSON_MAX_LADDER[k] / cost, cost)
 
 
 def easy_buy_classic_top(k: int, cost: float) -> float | None:
-    """Cost-unit advertised pin so the JSON top equals Off classic's max,
-    or the dashboard Max Payout cap if that binds first.
+    """Cost-unit advertised pin from easy_buy_classic.JSON_MAX_LADDER.
 
-    vs-debit is 2 x JSON (Lumen x Pulse / cost). buy100's 90,000x base-bet
-    cap therefore limits JSON to 450x, below Off picks 6-10.
+    Tops are *not* pinned to Off classic max. Picks 6–10 sit above Off
+    classic on buy10 (buy bonus); buy100 deep picks floor at the Max Payout
+    pin (JSON 450). How-to vs debit is 2 x JSON, capped at Earn classic
+    How-to on picks 8–10 (pick 10 JSON 2000 → 4000x with Pulse).
     """
-    if k not in CLASSIC_OFF:
+    if k not in CLASSIC_BUY_JSON_MAX_LADDER:
         return None
-    off_json = CLASSIC_OFF[k][-1]
-    payout_json = MAX_PAYOUT_ABS[cost] / (2.0 * cost)
-    return floor_grid(min(off_json, payout_json) / cost, cost)
+    return floor_grid(classic_buy_json_max_for(k, cost) / cost, cost)
 
 
 def easy_buy_medium_top(k: int, cost: float) -> float | None:
-    """Cost-unit advertised pin so the JSON top equals Off medium's max,
-    or the dashboard Max Payout cap if that binds first.
+    """Cost-unit advertised pin from easy_buy_medium.JSON_MAX_LADDER.
 
-    vs-debit is Pulse x JSON (Lumen x Pulse / cost). buy10's 45,000x base-bet
-    cap limits JSON to 2250x; buy100's 90,000x limits JSON to 450x. Pulse is
-    x2 on medium. Ceiling, not a raise: never paint Off 5000 over those tops.
+    Tops are *not* pinned to Off medium max — gradual mid→top under placed
+    Lumen. Max Payout floors buy100 deep picks (JSON ≤ 450).
     """
-    if k not in MEDIUM_OFF:
+    if k not in MEDIUM_BUY_JSON_MAX_LADDER:
         return None
-    off_json = MEDIUM_OFF[k][-1]
-    payout_json = MAX_PAYOUT_ABS[cost] / (PULSE_BOOST["medium"] * cost)
-    return floor_grid(min(off_json, payout_json) / cost, cost)
-
-
-# JSON advertised overrides when an Off/cap pin blows RTP/cvar/std.
-# Ceiling still applies: override can only lower, never raise Off or the cap.
-# Keyed (cost, k) -> JSON top. Filled by pin search for buy10 pick 6.
-BUY_HIGH_JSON_TOP: dict[tuple[float, int], float] = {
-    # buy10 pick 6 cannot hold JSON 2250 (declared 225 cost-units, row lands 85).
-    # Max designed-window pin 996.3 (rtp 0.9655, cvar 367, std 32).
-    (10.0, 6): 996.3,
-    # buy100 pick 6 cap 450 holds gates but rtp 0.9656 over designed 0.9655.
-    # Max designed-window pin 185.3.
-    (100.0, 6): 185.3,
-}
+    return floor_grid(medium_buy_json_max_for(k, cost) / cost, cost)
 
 
 def easy_buy_high_top(k: int, cost: float) -> float | None:
-    """Cost-unit advertised pin so the JSON top equals Off high's max,
-    or the dashboard Max Payout cap if that binds first.
+    """Cost-unit advertised pin from easy_buy_high.JSON_MAX_LADDER.
 
-    Pulse is x2 on high. buy10 JSON cap 45000/(2*10)=2250. buy100 JSON
-    cap 90000/(2*100)=450. Off pick 10 is 50000, so the cap binds. vs-debit
-    of the buy is JSON * Pulse (4500 / 900), under Earn How-to 100000.
+    Tops are *not* pinned to Off high max — gradual mid→top under placed
+    Lumen. Max Payout floors buy100 deep picks (JSON ≤ 450).
     """
-    if k not in HIGH_OFF:
+    if k not in HIGH_BUY_JSON_MAX_LADDER:
         return None
-    off_json = HIGH_OFF[k][-1]
-    payout_json = MAX_PAYOUT_ABS[cost] / (PULSE_BOOST["high"] * cost)
-    json_top = min(off_json, payout_json)
-    override = BUY_HIGH_JSON_TOP.get((cost, k))
-    if override is not None:
-        json_top = min(json_top, override)
-    return floor_grid(json_top / cost, cost)
+    return floor_grid(high_buy_json_max_for(k, cost) / cost, cost)
 
 
 def skip_jackpot_for_easy_low(
@@ -830,7 +831,7 @@ def pay_coeff(
 
     Earn folds the Lumen and Pulse expectation into the coefficient; Off is
     plain hypergeometric. `bought` is Earn with the extras forced open.
-    `placed` is the buy guarantee: marked pick is forced into the ten.
+    `placed` marks Lumen on a pick; catch is hit-or-miss (not forced into the ten).
     """
     if not earn:
         return list(base_coeff(k))
@@ -928,22 +929,18 @@ def jackpot_advertised(
         pin = easy_buy_low_top(k, cost)
         if pin is not None:
             return pin
-    if is_easy_buy_classic(risk, earn, buy, cost) and k >= 6:
-        # Picks 4-5 cannot pin Off with guaranteed Lumen (RTP 1.29-1.70),
-        # same class as Buy low pick 3. Ceiling still applies via advertised_cap.
+    if is_easy_buy_classic(risk, earn, buy, cost) and k >= 2:
+        # Raised JSON_MAX_LADDER pins (easy_buy_classic.py), not Off classic.
         pin = easy_buy_classic_top(k, cost)
         if pin is not None:
             return pin
-    if is_easy_buy_medium(risk, earn, buy, cost) and k >= 6:
-        # Picks 4-5 cannot pin Off with guaranteed Lumen, same class as
-        # Buy classic. Ceiling still applies via advertised_cap.
+    if is_easy_buy_medium(risk, earn, buy, cost) and k >= 2:
+        # Gradual JSON_MAX_LADDER pins (easy_buy_medium.py), not Off medium.
         pin = easy_buy_medium_top(k, cost)
         if pin is not None:
             return pin
-    if is_easy_buy_high(risk, earn, buy, cost) and k >= 6:
-        # Picks 4-5 cannot pin Off with guaranteed Lumen, same class as
-        # Buy classic/medium. If a k>=6 Off/cap pin blows, BUY_HIGH_JSON_TOP
-        # holds the max in-window pin. Ceiling still applies via advertised_cap.
+    if is_easy_buy_high(risk, earn, buy, cost) and k >= 2:
+        # Gradual JSON_MAX_LADDER pins (easy_buy_high.py), not Off high.
         pin = easy_buy_high_top(k, cost)
         if pin is not None:
             return pin
@@ -1610,11 +1607,12 @@ def buy_pick_one_row(
     two-outcome lattice no longer describes the mode. Two free values on a 0.1x
     grid is a small enough space to search directly.
 
-    pick_1 does not place Lumen (forcing the only pick in collapses variance
-    below the STD floor). It still uses BUY_LUMEN_BOOST at the Earn catch rate.
+    pick_1 places Lumen on the only pick (hit-or-miss, not forced). Catching
+    that pick is 10/40; a hit always pays BUY_LUMEN_BOOST because h=1 ⇒ mark hit.
     """
     paying = frozenset({0, 1})
-    p = effective_coeff(risk, 1, paying, True, False, buy)
+    placed = lumen_placed_on_pick(buy, 1)
+    p = effective_coeff(risk, 1, paying, True, placed, buy)
     cap = advertised_cap(risk, 1, 1, True, cost, buy)
     step = grid_step(cost)
     lo, hi = MODE_RTP_BAND
@@ -1630,7 +1628,7 @@ def buy_pick_one_row(
             if hit <= miss or hit > cap or hit < step:
                 continue
             table = [miss, hit]
-            rtp = settled_rtp(risk, 1, table, True, False, buy, cost)
+            rtp = settled_rtp(risk, 1, table, True, placed, buy, cost)
             if not lo <= rtp <= hi:
                 continue
             err = abs(rtp - RTP_TARGET)
@@ -1679,6 +1677,19 @@ def _solve_ladder(
                 # Earn `low`: leftover-share of the Easy HUD with Lumen/Pulse
                 # priced in (easy_earn_low.py). Buy chips keep their own ladders.
                 table, errors = list(EASY_EARN_LOW[k]), []
+            elif earn and risk == "low" and bought and buy in BUY_COSTS and k >= 2:
+                # Buy `low` Easy analogue (easy_buy_low.py): bought extras +
+                # placed Lumen (BUY_LUMEN_BOOST) + Pulse, JSON chart shared by
+                # buy10/buy100. pick_1 stays on buy_pick_one_row above.
+                table, errors = easy_buy_cost_row(k, buy), []
+            elif earn and risk == "classic" and bought and buy in BUY_COSTS and k >= 2:
+                table, errors = easy_buy_classic_cost_row(k, buy), []
+            elif earn and risk == "medium" and bought and buy in BUY_COSTS and k >= 2:
+                # Buy medium gradual charts (easy_buy_medium.py) — buy10 and
+                # separate buy100 ladder under 100× Lumen.
+                table, errors = easy_buy_medium_cost_row(k, buy), []
+            elif earn and risk == "high" and bought and buy in BUY_COSTS and k >= 2:
+                table, errors = easy_buy_high_cost_row(k, buy), []
             elif not earn and risk == "classic" and not bought and buy is None:
                 # Off `classic`: max-anchored geometric ladder (easy_off_classic.py).
                 # pick_1 stays on the lattice.
@@ -1962,8 +1973,45 @@ def patch_earn_low(paytables_path: str | None = None) -> dict:
     return tables
 
 
+def buy_chip_contract_gates(
+    risk: str, k: int, buy: str, cost: float, placed: bool
+) -> list[str]:
+    """The three promises a buy chip sells, checked on the solved mode.
+
+    1. Lumen pays the chip's cost multiple (`BUY_LUMEN_BOOST`), not the Earn ×2
+       — priced into the coefficients, so the boost must equal the cost.
+    2. Every pick size places the star on a pick (`placed`). Catch is
+       hit-or-miss (P=0.25); a full card always catches. Hit pays the chip
+       boost, miss leaves the base row.
+    3. The two extras are what the purchase buys: they open unconditionally
+       with reason `bought` on every book.
+    """
+    f: list[str] = []
+    boost = lumen_boost_for(risk, buy)
+    if boost != cost:
+        f.append(f"Lumen boost {boost:g}x != chip cost {cost:g}x")
+    contract = buy in BUY_COSTS
+    if contract and not placed:
+        f.append(
+            f"pick {k} solved without the placed-on-pick Lumen the chip sells"
+        )
+    if placed:
+        outcomes = spin_outcomes(k, paying=None, bought=True, placed=True)
+        if not any(s.lumen_hit for s in outcomes) or not any(
+            not s.lumen_hit for s in outcomes
+        ):
+            f.append("placed Lumen did not book both a catch and a miss")
+        full = [s for s in outcomes if s.main_hits == k]
+        if full and any(not s.lumen_hit for s in full):
+            f.append("full card missed the marked pick")
+        unbought = [s for s in outcomes if not s.extras or s.extra_reason != "bought"]
+        if unbought:
+            f.append(f"{len(unbought)} of {len(outcomes)} books without forced extras")
+    return f
+
+
 def patch_buy_low(paytables_path: str | None = None) -> dict:
-    """Re-solve Buy low 10x/100x only. JSON tops cannot exceed Off low."""
+    """Re-solve Buy low 10x/100x only. Tops from easy_buy_low.JSON_MAX_LADDER."""
     here = os.path.dirname(os.path.abspath(__file__))
     path = paytables_path or os.path.join(here, "paytables.json")
     with open(path, encoding="UTF-8") as handle:
@@ -1979,27 +2027,36 @@ def patch_buy_low(paytables_path: str | None = None) -> dict:
             name = f"low_pick_{k}_{buy}"
             placed = lumen_placed_on_pick(buy, k)
             if k == 1:
-                table, errors = buy_pick_one_row("low", cost, buy)
+                # Chip-specific lattice. Lumen sits on the only pick (hit-or-miss).
+                baked = EASY_BUY_LOW_PICK1.get(buy)
+                if baked is not None:
+                    table, errors = [m / cost for m in baked], []
+                else:
+                    table, errors = buy_pick_one_row("low", cost, buy)
+            elif k in EASY_BUY_LOW:
+                # Easy buy leftover-share / lock-clean chart (easy_buy_low.py).
+                table, errors = easy_buy_cost_row(k, buy), []
             else:
-                table, errors = solve_table(
-                    "low", k, True, True, cost, placed, buy
-                )
+                pinned = scaled_row_for(buy, "low", k, cost)
+                if pinned is not None:
+                    table, errors = [m / cost for m in pinned], []
+                else:
+                    table, errors = solve_table(
+                        "low", k, True, True, cost, placed, buy
+                    )
             stats = mode_stats_for(
                 "low", k, table, True, True, placed, cost, buy
             )
-            fails = list(errors) + check_gates(k, stats, earn=True, cost=cost, risk=risk)
+            fails = list(errors) + check_gates(
+                k, stats, earn=True, cost=cost, risk="low"
+            ) + buy_chip_contract_gates("low", k, buy, cost, placed)
             json_top = round(max(table) * cost, 1)
             off_top = max(off_low[str(k)])
             earn_how_to = max(earn_low[str(k)]) * 4.0
             vs_debit = stats["max_m"]
-            # Headline lock: chip cannot raise Off's jackpot (picks 4-10)
-            # or Earn's How-to (picks 8-10). pick_1 is the buy lattice, not
-            # a jackpot, and pick_3 cannot pin at Off without blowing RTP
-            # once Lumen is guaranteed.
-            if k >= 4 and json_top - off_top > 1e-9:
-                fails.append(
-                    f"JSON top {json_top:.1f}x raises Off jackpot {off_top:.1f}x"
-                )
+            # Buy low may exceed Off Easy max on picks 5–10 (priced under
+            # placed Lumen + Pulse). Still must not raise Earn How-to on
+            # picks 8–10. pick_1 is the buy lattice, not a jackpot.
             if k >= 8 and vs_debit - earn_how_to > 1e-9:
                 fails.append(
                     f"vs-debit {vs_debit:.1f}x raises Earn How-to {earn_how_to:.1f}x"
@@ -2016,6 +2073,21 @@ def patch_buy_low(paytables_path: str | None = None) -> dict:
             )
             print(f"{'':22s} {tables[str(k)]}")
         out[buy] = tables
+    # HUD maxes must not fall as the card deepens (pick 3 under pick 2 is the
+    # inversion the restairs removed). The chain starts at pick 2: pick_1 is
+    # the buy lattice, not a jackpot, and its single hit cell (16.7x JSON)
+    # towers over every deep-card top by design. Audited on buy10; buy100 low
+    # still carries its own inversion pending the same probe on 100x Lumen.
+    tables = out["buy10"]
+    prev_k, prev_top = 2, max(tables["2"])
+    for k in PICKS[2:]:
+        top = max(tables[str(k)])
+        if top + 1e-9 < prev_top:
+            failures.setdefault(f"low_pick_{k}_buy10", []).append(
+                f"JSON top {top:.1f}x < pick {prev_k} {prev_top:.1f}x "
+                "(HUD maxes must climb with pick count)"
+            )
+        prev_k, prev_top = k, top
     if failures:
         raise SystemExit(f"buy low gate failures: {failures}")
     for buy, tables in out.items():
@@ -2034,7 +2106,7 @@ def patch_buy_low(paytables_path: str | None = None) -> dict:
 
 
 def patch_buy_classic(paytables_path: str | None = None) -> dict:
-    """Re-solve Buy classic 10x/100x only. JSON tops cannot exceed Off classic."""
+    """Re-solve Buy classic 10x/100x only. Tops from easy_buy_classic.JSON_MAX_LADDER."""
     here = os.path.dirname(os.path.abspath(__file__))
     path = paytables_path or os.path.join(here, "paytables.json")
     with open(path, encoding="UTF-8") as handle:
@@ -2050,7 +2122,13 @@ def patch_buy_classic(paytables_path: str | None = None) -> dict:
             name = f"classic_pick_{k}_{buy}"
             placed = lumen_placed_on_pick(buy, k)
             if k == 1:
-                table, errors = buy_pick_one_row("classic", cost, buy)
+                baked = EASY_BUY_CLASSIC_PICK1.get(buy)
+                if baked is not None:
+                    table, errors = [m / cost for m in baked], []
+                else:
+                    table, errors = buy_pick_one_row("classic", cost, buy)
+            elif k in EASY_BUY_CLASSIC:
+                table, errors = easy_buy_classic_cost_row(k, buy), []
             else:
                 table, errors = solve_table(
                     "classic", k, True, True, cost, placed, buy
@@ -2060,15 +2138,14 @@ def patch_buy_classic(paytables_path: str | None = None) -> dict:
             )
             fails = list(errors) + check_gates(
                 k, stats, earn=True, cost=cost, risk="classic"
-            )
+            ) + buy_chip_contract_gates("classic", k, buy, cost, placed)
             json_top = round(max(table) * cost, 1)
             off_top = max(off_classic[str(k)])
             earn_how_to = max(earn_classic[str(k)]) * 4.0
             vs_debit = stats["max_m"]
-            if k >= 4 and json_top - off_top > 1e-9:
-                fails.append(
-                    f"JSON top {json_top:.1f}x raises Off jackpot {off_top:.1f}x"
-                )
+            # Buy classic may exceed Off classic max on picks 6–10 (priced under
+            # placed Lumen + Pulse). Still must not raise Earn How-to on
+            # picks 8–10. pick_1 is the buy lattice, not a jackpot.
             if k >= 8 and vs_debit - earn_how_to > 1e-9:
                 fails.append(
                     f"vs-debit {vs_debit:.1f}x raises Earn How-to {earn_how_to:.1f}x"
@@ -2085,6 +2162,17 @@ def patch_buy_classic(paytables_path: str | None = None) -> dict:
             )
             print(f"{'':22s} {tables[str(k)]}")
         out[buy] = tables
+    # HUD maxes must not fall as the card deepens (from pick 2). Audited on buy10.
+    tables = out["buy10"]
+    prev_k, prev_top = 2, max(tables["2"])
+    for k in PICKS[2:]:
+        top = max(tables[str(k)])
+        if top + 1e-9 < prev_top:
+            failures.setdefault(f"classic_pick_{k}_buy10", []).append(
+                f"JSON top {top:.1f}x < pick {prev_k} {prev_top:.1f}x "
+                "(HUD maxes must climb with pick count)"
+            )
+        prev_k, prev_top = k, top
     if failures:
         raise SystemExit(f"buy classic gate failures: {failures}")
     for buy, tables in out.items():
@@ -2101,9 +2189,8 @@ def patch_buy_classic(paytables_path: str | None = None) -> dict:
 
 
 
-
 def patch_buy_high(paytables_path: str | None = None) -> dict:
-    """Re-solve Buy high 10x/100x only. JSON tops cannot exceed Off high."""
+    """Re-solve Buy high 10x/100x. Tops from easy_buy_high ladders."""
     here = os.path.dirname(os.path.abspath(__file__))
     path = paytables_path or os.path.join(here, "paytables.json")
     with open(path, encoding="UTF-8") as handle:
@@ -2119,25 +2206,18 @@ def patch_buy_high(paytables_path: str | None = None) -> dict:
             name = f"high_pick_{k}_{buy}"
             placed = lumen_placed_on_pick(buy, k)
             if k == 1:
-                table, errors = buy_pick_one_row("high", cost, buy)
+                baked = EASY_BUY_HIGH_PICK1.get(buy)
+                table, errors = [m / cost for m in baked], []
             else:
-                table, errors = solve_table(
-                    "high", k, True, True, cost, placed, buy
-                )
-            stats = mode_stats_for(
-                "high", k, table, True, True, placed, cost, buy
-            )
+                table, errors = easy_buy_high_cost_row(k, buy), []
+            stats = mode_stats_for("high", k, table, True, True, placed, cost, buy)
             fails = list(errors) + check_gates(
                 k, stats, earn=True, cost=cost, risk="high"
-            )
+            ) + buy_chip_contract_gates("high", k, buy, cost, placed)
             json_top = round(max(table) * cost, 1)
             off_top = max(off_high[str(k)])
             earn_how_to = max(earn_high[str(k)]) * 4.0
             vs_debit = stats["max_m"]
-            if k >= 4 and json_top - off_top > 1e-9:
-                fails.append(
-                    f"JSON top {json_top:.1f}x raises Off jackpot {off_top:.1f}x"
-                )
             if k >= 8 and vs_debit - earn_how_to > 1e-9:
                 fails.append(
                     f"vs-debit {vs_debit:.1f}x raises Earn How-to {earn_how_to:.1f}x"
@@ -2154,6 +2234,16 @@ def patch_buy_high(paytables_path: str | None = None) -> dict:
             )
             print(f"{'':22s} {tables[str(k)]}")
         out[buy] = tables
+        # HUD climb from pick 2
+        prev_k, prev_top = 2, max(tables["2"])
+        for k in PICKS[2:]:
+            top = max(tables[str(k)])
+            if top + 1e-9 < prev_top:
+                failures.setdefault(f"high_pick_{k}_{buy}", []).append(
+                    f"JSON top {top:.1f}x < pick {prev_k} {prev_top:.1f}x "
+                    "(HUD maxes must climb with pick count)"
+                )
+            prev_k, prev_top = k, top
     if failures:
         raise SystemExit(f"buy high gate failures: {failures}")
     for buy, tables in out.items():
@@ -2169,7 +2259,7 @@ def patch_buy_high(paytables_path: str | None = None) -> dict:
 
 
 def patch_buy_medium(paytables_path: str | None = None) -> dict:
-    """Re-solve Buy medium 10x/100x only. JSON tops cannot exceed Off medium."""
+    """Re-solve Buy medium 10x/100x. Tops from easy_buy_medium ladders."""
     here = os.path.dirname(os.path.abspath(__file__))
     path = paytables_path or os.path.join(here, "paytables.json")
     with open(path, encoding="UTF-8") as handle:
@@ -2185,25 +2275,20 @@ def patch_buy_medium(paytables_path: str | None = None) -> dict:
             name = f"medium_pick_{k}_{buy}"
             placed = lumen_placed_on_pick(buy, k)
             if k == 1:
-                table, errors = buy_pick_one_row("medium", cost, buy)
+                baked = EASY_BUY_MEDIUM_PICK1.get(buy)
+                table, errors = [m / cost for m in baked], []
             else:
-                table, errors = solve_table(
-                    "medium", k, True, True, cost, placed, buy
-                )
+                table, errors = easy_buy_medium_cost_row(k, buy), []
             stats = mode_stats_for(
                 "medium", k, table, True, True, placed, cost, buy
             )
             fails = list(errors) + check_gates(
                 k, stats, earn=True, cost=cost, risk="medium"
-            )
+            ) + buy_chip_contract_gates("medium", k, buy, cost, placed)
             json_top = round(max(table) * cost, 1)
             off_top = max(off_medium[str(k)])
             earn_how_to = max(earn_medium[str(k)]) * 4.0
             vs_debit = stats["max_m"]
-            if k >= 4 and json_top - off_top > 1e-9:
-                fails.append(
-                    f"JSON top {json_top:.1f}x raises Off jackpot {off_top:.1f}x"
-                )
             if k >= 8 and vs_debit - earn_how_to > 1e-9:
                 fails.append(
                     f"vs-debit {vs_debit:.1f}x raises Earn How-to {earn_how_to:.1f}x"
@@ -2220,6 +2305,15 @@ def patch_buy_medium(paytables_path: str | None = None) -> dict:
             )
             print(f"{'':22s} {tables[str(k)]}")
         out[buy] = tables
+        prev_k, prev_top = 2, max(tables["2"])
+        for k in PICKS[2:]:
+            top = max(tables[str(k)])
+            if top + 1e-9 < prev_top:
+                failures.setdefault(f"medium_pick_{k}_{buy}", []).append(
+                    f"JSON top {top:.1f}x < pick {prev_k} {prev_top:.1f}x "
+                    "(HUD maxes must climb with pick count)"
+                )
+            prev_k, prev_top = k, top
     if failures:
         raise SystemExit(f"buy medium gate failures: {failures}")
     for buy, tables in out.items():
@@ -2227,21 +2321,12 @@ def patch_buy_medium(paytables_path: str | None = None) -> dict:
     with open(path, "w", encoding="UTF-8") as handle:
         json.dump(doc, handle, indent=2)
         handle.write("\n")
-    web_path = resolve_web_file("keno-paytables.json", "KENO_WEB_PAYTABLES")
-    if os.path.isfile(web_path):
-        with open(web_path, encoding="UTF-8") as handle:
-            web = json.load(handle)
-        for buy, tables in out.items():
-            web[buy]["medium"] = tables
-        with open(web_path, "w", encoding="UTF-8") as handle:
-            json.dump(web, handle, indent=2)
-            handle.write("\n")
-        print(f"wrote {web_path} buy10/buy100.medium")
     print(
         f"wrote {path} buy10/buy100.medium "
         f"({len(all_rtps)} modes, rtp {min(all_rtps):.4f}-{max(all_rtps):.4f})"
     )
     return out
+
 
 
 def patch_earn_medium(paytables_path: str | None = None) -> dict:
@@ -2776,6 +2861,14 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1] == "--earn-high":
         patch_earn_high()
     elif len(sys.argv) > 1 and sys.argv[1] == "--buy-high":
+        patch_buy_high()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--buy-low":
+        patch_buy_low()
+    elif len(sys.argv) > 1 and sys.argv[1] == "--buy-100":
+        # All four risks' buy100 (and buy10 where those patches own both chips).
+        patch_buy_classic()
+        patch_buy_low()
+        patch_buy_medium()
         patch_buy_high()
     else:
         off, off_rtps = solve_off()

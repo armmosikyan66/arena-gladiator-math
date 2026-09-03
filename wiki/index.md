@@ -1,10 +1,10 @@
 ---
 type: index
 tags: [meta]
-updated: 2026-09-02
+updated: 2026-09-03
 source_count: 7
 page_count: 21
-last_change: 2026-09-02 Earn high 5–7 flattened (209×/1127×/60× cliffs → 10–15× steps).
+last_change: 2026-09-03 Buy Lumen hit-or-miss (not forced into the ten); books exported.
 ---
 
 # Math SDK Wiki
@@ -43,7 +43,7 @@ _Vendor and external docs, summarized — not copied._
 
 - [[codebase/sdk-layout]] — `src/`, `games/`, outputs, what to edit.
 - [[codebase/gladiator-tower]] — Session climb math, modes, publish pipeline.
-- [[codebase/luma-keno]] — Hit-count keno, 160 modes (Off / Earn / buy10 / buy100) at 0.9650 RTP; Pulse ×2 on every risk; buy ceilings capped per cost. Off `low` is the Easy leftover-share copy; Earn `low` is the same HUD zeros leftover-filled on Earn coefficients; Off `classic` / `medium` / `high` are geometric HUD copies.
+- [[codebase/luma-keno]] — Hit-count keno, 160 modes (Off / Earn / buy10 / buy100) at 0.9650 RTP; Pulse ×2 on every risk; buy Lumen is mark-on-pick hit-or-miss (P=0.25), not forced into the ten; buy ceilings capped per cost. Off `low` is the Easy leftover-share copy; Earn `low` is the same HUD zeros leftover-filled on Earn coefficients; Off `classic` / `medium` / `high` are geometric HUD copies.
 
 ## Domain
 

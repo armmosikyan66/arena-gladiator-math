@@ -236,23 +236,22 @@ class SpinCriteria:
 #: rules with the extras forced open, so `parse_mode_name` reports it as earn.
 BUY_SUFFIXES = {"buy10": 10.0, "buy100": 100.0}
 
-#: Both buy chips (2+ picks) place the Lumen mark on one of the player's picks
-#: and force that number into the main ten, so the catch is certain. Remaining
-#: hits are Hypergeometric on the other k-1 picks vs 9 draws from 39 — P(h=0)
-#: is 0, P(lumenHit)=1. Lumen still pays BUY_LUMEN_BOOST (10× / 100×) only on
-#: a paying row; a dead chart stays dead. The cost-unit solve prices the
-#: always-on boost in, so advertised rows shrink.
+#: Both buy chips place the Lumen mark on one of the player's picks (including
+#: pick_1). The mark is *not* forced into the ten: catch is hit-or-miss.
+#: P(lumenHit) = 10/40 = 0.25 for every pick size; P(lumenHit | h) = h/k.
+#: A full card (h=k) always catches. Hit on a paying row pays BUY_LUMEN_BOOST
+#: (10× / 100×); a miss leaves the advertised base. Pulse ×2 still rolls on
+#: 10% of bought-extra books. Dead rows stay dead.
 #:
-#: pick_1 is excluded: forcing the only pick into the draw collapses the mode
-#: onto h=1 + Pulse, which fails Base Mode STD (~0.26 vs 0.60). It still uses
-#: the chip boost at the Earn catch rate (picks/40).
+#: Sample space is C(40, k) · k · scale (ordinary hypergeometric × mark slots
+#: among the k picks). This is not Earn: Earn marks one of the drawn ten.
 GUARANTEED_LUMEN_BUYS = frozenset({"buy10", "buy100"})
-MIN_GUARANTEE_PICKS = 2
+MIN_PLACED_PICKS = 1
 
 
 def lumen_placed_on_pick(buy: str | None, k: int) -> bool:
-    """Whether this mode sits Lumen on a pick and forces that pick into the draw."""
-    return buy in GUARANTEED_LUMEN_BUYS and k >= MIN_GUARANTEE_PICKS
+    """Whether this mode sits Lumen on a player pick (hit-or-miss, not forced)."""
+    return buy in GUARANTEED_LUMEN_BUYS and k >= MIN_PLACED_PICKS
 
 
 def parse_mode_name(name: str) -> tuple[str, int, bool, str | None]:
@@ -315,15 +314,11 @@ def base_hit_weight(
 ) -> int:
     """Hypergeometric ways to realize `h` main hits on a `k`-pick card.
 
-    `placed` (buy 10× / 100×, 2+ picks): one pick is forced into the ten, so
-    the remaining k-1 picks are drawn from 39 against 9 spots. h=0 is
-    impossible. Mark-slot multiplicity (`k`) lives in `lumen_hit_factor`, not
-    here, so this count is the draw side only.
+    `placed` (buy 10× / 100×): the mark sits on a pick but is not forced
+    into the ten, so hit counts stay ordinary Hypergeometric(40, 10, k).
+    Mark-slot multiplicity (`k`) lives in `lumen_hit_factor`, not here.
     """
-    if placed:
-        if h < 1 or h > k or (k - h) > rest or h > drawn:
-            return 0
-        return comb(drawn - 1, h - 1) * comb(rest, k - h)
+    del placed  # draw side is the same; mark slots are in lumen_hit_factor
     if h < 0 or h > k or (k - h) > rest or h > drawn:
         return 0
     return comb(drawn, h) * comb(rest, k - h)
@@ -434,12 +429,15 @@ def lumen_books_for_hits(
     Default: the mark is one of the `drawn` numbers, so a partial catch still
     splits — some of those numbers are picks, some are not.
 
-    `placed` (buy 10× / 100×, 2+ picks): the marked pick is forced into the
-    ten, so every legal book catches. h=0 has no books (the forced pick is a
-    hit). `k` is unused here; mark-slot multiplicity lives in the factor.
+    `placed` (buy 10× / 100×): the mark is one of the k picks, not forced
+    into the ten. h=0 never catches; h=k always catches; partial cards split.
     """
     if placed:
-        return [True] if hits >= 1 else []
+        if hits <= 0:
+            return [False]
+        if k > 0 and hits >= k:
+            return [True]
+        return [False, True]
     if hits <= 0:
         return [False]
     if hits >= drawn:
@@ -455,11 +453,11 @@ def lumen_hit_factor(
     Default: the mark is one of the `drawn` numbers — `hits` of them are picks,
     so P(lumenHit | h) = h/drawn and the factor is `hits` or `drawn - hits`.
 
-    `placed`: any of the k picks can be the mark, and that pick is forced in,
-    so every catch book carries `k` slots and miss books carry none.
+    `placed`: the mark is one of the k picks. P(lumenHit | h) = h/k, so a
+    catch book has `hits` mark slots and a miss book has `k - hits`.
     """
     if placed:
-        return k if lumen_hit else 0
+        return hits if lumen_hit else max(k - hits, 0)
     return hits if lumen_hit else drawn - hits
 
 
@@ -696,11 +694,11 @@ def weight_total(k: int, drawn: int = DRAWN, placed: bool = False) -> int:
     """Total book weight for `k` picks: every draw configuration × every mark slot.
 
     Default: C(40, k) cards × `drawn` mark slots among the ten.
-    `placed`: choose which pick is marked (`k`), force it into the ten, then
-    choose the other k-1 picks from the remaining 39 — C(39, k-1) · k.
+    `placed`: C(40, k) cards × `k` mark slots among the player's picks.
+    The marked pick is not forced into the ten.
     """
     if placed:
-        return k * comb(POOL - 1, k - 1) * weight_scale()
+        return comb(POOL, k) * k * weight_scale()
     return comb(POOL, k) * drawn * weight_scale()
 
 
@@ -725,8 +723,8 @@ def effective_coeff(
     shifts weight into the higher total-hit buckets rather than adding a
     channel, so the coefficients stay a plain RTP decomposition.
 
-    `placed` forces the marked pick into the ten (always catch; hit counts
-    shift). `buy` selects BUY_LUMEN_BOOST (10× / 100×) instead of Earn ×2.
+    `placed` sits the mark on a pick (hit-or-miss; P(catch)=0.25).
+    `buy` selects BUY_LUMEN_BOOST (10× / 100×) instead of Earn ×2.
     """
     total = weight_total(k, placed=placed)
     boost = lumen_boost_for(risk, buy)
@@ -1024,19 +1022,19 @@ assert sum(
     spin_weight(8, spin, "classic", paying=CLASSIC_8_PAYING)
     for spin in spin_outcomes(8, paying=CLASSIC_8_PAYING)
 ) == comb(40, 8) * DRAWN * weight_scale()
-# --- buy placed Lumen: guaranteed catch --------------------------------------
-# Sample space is C(39, k-1) · k · scale (force one pick in, mark any of k).
+# --- buy placed Lumen: mark on a pick, hit-or-miss ---------------------------
+# Sample space is C(40, k) · k · scale (ordinary cards × mark among k picks).
 assert all(
     sum(spin_weight(k, spin, r, bought=True, placed=True) for spin in spin_outcomes(k, bought=True, placed=True))
     == weight_total(k, placed=True)
-    for k in range(MIN_GUARANTEE_PICKS, 11)
+    for k in range(MIN_PLACED_PICKS, 11)
     for r in ("classic", "high")
-), "placed Lumen sample space is not C(39,k-1)·k"
+), "placed Lumen sample space is not C(40,k)·k"
 assert all(
-    weight_total(k, placed=True) == k * comb(POOL - 1, k - 1) * weight_scale()
-    for k in range(MIN_GUARANTEE_PICKS, 11)
-), "placed weight_total is not C(39,k-1)·k·scale"
-# Catch is certain: every book has lumenHit, and h=0 does not exist.
+    weight_total(k, placed=True) == comb(POOL, k) * k * weight_scale()
+    for k in range(MIN_PLACED_PICKS, 11)
+), "placed weight_total is not C(40,k)·k·scale"
+# Catch rate is 10/40 = 0.25 for every pick size (mark on a pick, not forced).
 assert all(
     abs(
         sum(
@@ -1045,31 +1043,38 @@ assert all(
             if spin.lumen_hit
         )
         / weight_total(k, placed=True)
-        - 1.0
+        - DRAWN / POOL
     )
     < 1e-12
-    for k in range(MIN_GUARANTEE_PICKS, 11)
+    for k in range(MIN_PLACED_PICKS, 11)
     for r in ("classic", "medium")
-), "placed Lumen catch rate is not 1"
-assert not any(
-    s.main_hits == 0 or not s.lumen_hit
-    for k in range(MIN_GUARANTEE_PICKS, 11)
-    for s in spin_outcomes(k, bought=True, placed=True)
-), "placed Lumen booked a miss or a zero-hit card"
-# Remaining hits: Vandermonde C(9, h-1)·C(30, k-h) sums to C(39, k-1).
+), "placed Lumen catch rate is not 0.25"
+# h=0 never catches; h=k always catches.
 assert all(
-    sum(base_hit_weight(k, h, placed=True) for h in range(k + 1)) == comb(POOL - 1, k - 1)
-    for k in range(MIN_GUARANTEE_PICKS, 11)
-), "placed hit weights do not sum to C(39, k-1)"
-assert lumen_hit_factor(3, True, k=5, placed=True) == 5
-assert lumen_hit_factor(3, False, k=5, placed=True) == 0
-assert lumen_books_for_hits(0, placed=True, k=5) == []
-assert lumen_books_for_hits(1, placed=True, k=5) == [True]
+    (not s.lumen_hit) if s.main_hits == 0 else True
+    for k in range(MIN_PLACED_PICKS, 11)
+    for s in spin_outcomes(k, bought=True, placed=True)
+), "placed Lumen caught on a zero-hit card"
+assert all(
+    s.lumen_hit
+    for k in range(MIN_PLACED_PICKS, 11)
+    for s in spin_outcomes(k, bought=True, placed=True)
+    if s.main_hits == k
+), "placed Lumen missed a full card"
+assert all(
+    sum(base_hit_weight(k, h, placed=True) for h in range(k + 1)) == comb(POOL, k)
+    for k in range(MIN_PLACED_PICKS, 11)
+), "placed hit weights do not sum to C(40, k)"
+assert lumen_hit_factor(3, True, k=5, placed=True) == 3
+assert lumen_hit_factor(3, False, k=5, placed=True) == 2
+assert lumen_books_for_hits(0, placed=True, k=5) == [False]
+assert lumen_books_for_hits(1, placed=True, k=5) == [False, True]
 assert lumen_books_for_hits(5, placed=True, k=5) == [True]
-# The flag is off on Earn and on both chips' pick_1.
+assert lumen_books_for_hits(1, placed=True, k=1) == [True]
+# The flag is on for every buy pick size, off on Earn.
 assert not lumen_placed_on_pick(None, 5)
-assert lumen_placed_on_pick("buy10", 2) and not lumen_placed_on_pick("buy10", 1)
-assert lumen_placed_on_pick("buy100", 2) and not lumen_placed_on_pick("buy100", 1)
+assert lumen_placed_on_pick("buy10", 1) and lumen_placed_on_pick("buy10", 2)
+assert lumen_placed_on_pick("buy100", 1) and lumen_placed_on_pick("buy100", 10)
 assert lumen_boost_for("high") == 2.0
 assert lumen_boost_for("high", "buy10") == 10.0
 assert lumen_boost_for("high", "buy100") == 100.0

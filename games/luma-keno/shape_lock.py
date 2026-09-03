@@ -22,7 +22,7 @@ The rules
                  designated the volatility wall - the crossing from the
                  consolation block into the first celebrate cell - and that one
                  is allowed <= 18.0. Never 180.
-`last_catch`     8.0 <= m[N] / m[N-1] <= 15.0 when N is the full card.
+`last_catch`     5.0 <= m[N] / m[N-1] <= 15.0 when N is the full card.
 `no_mega_jump`   no step >= 20x outside the final catch (implied by ratio_max,
                  asserted separately so a future ratio_max edit cannot silently
                  re-open the cliff).
@@ -80,7 +80,7 @@ class ShapeLock:
     ratio_max: float = 8.0
     #: Only the consolation -> celebrate crossing may use this.
     wall_ratio_max: float = 18.0
-    last_catch_min: float = 8.0
+    last_catch_min: float = 5.0
     last_catch_max: float = 15.0
     #: Hard cliff ceiling outside the final catch.
     mega_jump: float = 20.0

@@ -42,11 +42,13 @@ RESTAIRED: dict[tuple[str, str, int], list[float]] = {
     # this uniform ~5-6x ladder keeps the last catch at 15x. How-to 50000
     # > Off 40000. Lock-clean, rtp 0.9654.
     ("earn", "high", 9): [0.6, 4.7, 23.5, 129.6, 833.4, 12500.0],
-    # Earn high 10 was 1.0 / 2.6 / 8 / 44.3 / 371.7 / 521.6 / 25000: 371.7
-    # -> 521.6 is a 1.40x pair the HUD renders as one cell, then a 47.93x
-    # cliff into the cap-pinned jackpot. Restair reads as a uniform ladder,
-    # last catch 14.67x inside the band. Lock-clean, rtp 0.9630.
-    ("earn", "high", 10): [0.2, 0.9, 14.6, 71.5, 349.3, 1703.9, 25000.0],
+    # Earn high 10 at the 25000 cap-pinned top (How-to 100000 = the ceiling,
+    # so the fleet report grades the final catch as an ordinary step, max 8x).
+    # First restair ended 1703.9 -> 25000 (14.67x) - clean under the plain
+    # lock's 8-15x last-catch band, a cliff under the capped one. solve_row
+    # under the capped lock builds a uniform ~6x ladder ending 3125 -> 25000
+    # at exactly 8x. Lock-clean (capped, pick-aware), rtp 0.9655.
+    ("earn", "high", 10): [0.3, 0.8, 12.2, 74, 451, 3125, 25000.0],
     # Earn high 5 was 1.6 / 2.1 / 439.3: the 4-of-5 body cell parked at 2.1x
     # (below a real win) and then cliffed 209x into the jackpot. Lowering the
     # top to the How-to floor (229.3, settles 917.2 >= Off 900) funds a real
@@ -60,6 +62,15 @@ RESTAIRED: dict[tuple[str, str, int], list[float]] = {
     # of an already-cliffing 8.24x mid pair. 1468.8 (How-to 5875.2 >= Off
     # 5500) keeps the 8x wall once and ends 144.1 -> 1468.8 (10.2x). rtp 0.9642.
     ("earn", "high", 7): [0.3, 2.4, 19.2, 144.1, 1468.8],
+    # buy10 low rows, in cost units (1.0 = chip price back). The solver's
+    # water-fill packs sub-refund consolation bodies (0.09/0.1, 0.98/1.06)
+    # the HUD renders as one cell. Pick 3's top cannot reach the Off pin
+    # (1.04 cost units is 147% RTP with placed Lumen) or even exceed pick 2;
+    # 0.26 matches pick 2 so the ladder is flat there, not inverted.
+    ("buy10", "low", 3): [0.02, 0.14, 0.26],
+    ("buy10", "low", 6): [0.02, 0.07, 0.4, 0.71, 4.0],
+    ("buy10", "low", 9): [0.16, 0.24, 0.67, 0.84, 1.06, 8.5],
+    ("buy10", "low", 10): [0.08, 0.23, 0.51, 0.79, 1.0, 1.25, 10.0],
 }
 
 

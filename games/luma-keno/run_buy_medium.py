@@ -1,2 +1,5 @@
+"""Patch Buy medium paytables (buy10 + buy100 designed charts)."""
 import solve_paytables as s
-s.patch_buy_medium("/workspace/paytables.json")
+
+if __name__ == "__main__":
+    s.patch_buy_medium()
