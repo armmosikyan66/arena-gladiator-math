@@ -183,6 +183,14 @@ rejection, but the precedent in this repo is to treat the label as something to
 fix: `TOP_OVERRIDE` exists because `high_pick_6` was flagged at 25.73
 ([[codebase/luma-keno]]).
 
+**Resolved 2026-09-03 — superseded by the Off/Earn parity pass.** Earn high
+pick 10 no longer carries a 100,000× headline: it advertises 12,500 (settles
+50,000 = Off pick 10), pick 9 advertises 10,000 (settles 40,000 = Off pick 9).
+`high_pick_10_earn` std fell 26.63 → 12.96, back under `high_pick_8`'s
+observed-safe band, and the sitting-on-the-ceiling publish exposure (`>=` read
+on the dashboard side) is gone. Both new rows are lock-clean with the final
+catch at exactly 15×. The historical options below are kept for context.
+
 Two ways out if it is flagged, in order of preference:
 
 1. **Hold Earn at 90,000× and let Off carry 100,000× alone** — `jackpot_advertised`
@@ -214,10 +222,13 @@ that ceiling; the other three risks were not:
 | --- | --- | --- |
 | `low_pick_9`, before | 20.4× | 20.4× |
 | `low_pick_9`, after | **4,000×** | **900×** |
-| ceiling in cost units | 4,500× (= 45,000× base bet) | 900× (= 90,000× base bet) |
+| `high_pick_10`, 2026-09-03 | **10,000×** | **1,000×** |
+| ceiling in cost units | 10,000× (= 100,000× base bet) | 1,000× (= 100,000× base bet) |
 
 All eight pick-9/pick-10 buy chips now sit at the ceiling their cost allows.
 `low_pick_9_buy10` was advertising 20.4× where 4,500× was permitted.
+**2026-09-03 headline parity:** `high_pick_10` buy10/buy100 raised to 100,000×
+the base bet (JSON 5,000 / 500), matching Off/Earn's 3-Star ceiling exactly.
 
 ## Picks 4–8: restoring declared ceilings
 

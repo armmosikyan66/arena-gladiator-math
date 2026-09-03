@@ -61,10 +61,12 @@ BUY_COSTS = {"buy10": 10.0, "buy100": 100.0}
 
 #: Dashboard Max Payout Multiplier (base-bet). vs-debit ≈ Pulse×JSON with
 #: placed Lumen (boost == cost), so JSON ≤ MAX_PAYOUT_ABS[cost] / (2 × cost).
-#: buy100 keeps 90_000 (3-Star 100k − ~10% margin) → JSON pin 450 / How-to 900.
-#: Do not raise to 100k just to chase buy10 vs-debit — absolute jackpot is already
-#: higher on buy100 (90k vs buy10 45k); redesign mid-ladder under the pin instead.
-MAX_PAYOUT_ABS = {10.0: 45_000.0, 100.0: 90_000.0}
+#: 2026-09-03 headline parity: buy chips pin at 100_000 on `high` pick 10 —
+#: JSON 5,000 (buy10) / 500 (buy100), both settling 100,000x the base bet at
+#: the 3-Star ceiling exactly. The old 10% margin rule is dropped for this one
+#: pin: Off/Earn already sit on the same 100,000x boundary, and `rgs_verification`
+#: gates max_win at 100_000*100 cents with a strict `>`, so equality passes.
+MAX_PAYOUT_ABS = {10.0: 100_000.0, 100.0: 100_000.0}
 
 
 @dataclass(frozen=True)

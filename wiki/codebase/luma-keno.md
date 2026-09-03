@@ -143,7 +143,7 @@ each ~10% under the tier it answers to, and `cap_for` divides it by the cost:
 
 | cost | ceiling | binding tier | worst shipped |
 | --- | --- | --- | --- |
-| 1× (Off / Earn) | 100,000× | — (peaks at 4,900×) | 4,900× |
+| 1× (Off / Earn) | 100,000× | — (peaks at 50,000× since the 2026-09-03 parity pass) | 50,000× |
 | 10× | 45,000× | 2-Star 50,000× (had reached 49,000×) | 45,000× |
 | 100× | 90,000× | 3-Star 100,000× (cannot reach 2-Star) | 90,000× |
 

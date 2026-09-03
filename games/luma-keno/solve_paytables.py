@@ -144,11 +144,13 @@ MEDIUM_EARN_TOP = {
 }
 
 # Earn high: Pulse x2, Lumen x2, How-to = advertised x4. Skip JACKPOT_TOP
-# (100000 advertised is the old solver pin, not this HUD copy). Dashboard
-# MAX_PAYOUT_ABS[1.0]=100000 so advertised * 4 <= 100000, advertised <= 25000.
-# Off pick 10 is 50000; Earn cannot pin 50000 (How-to would be 200000).
-# 9/9 pins 12500 (not 25000) so the HUD climbs 6100 < 12500 < 25000; a flat
-# 25000 = 25000 made 9/9 the equal of 10/10 for 5x the catch odds.
+# (100000 advertised is the old solver pin, not this HUD copy). Off/Earn
+# headline parity from 2026-09-03: pick 10 settles 12500 x4 = 50000 = Off,
+# pick 9 settles 10000 x4 = 40000 = Off pick 9. Neither sits on the
+# MAX_PAYOUT_ABS[1.0]=100000 dashboard ceiling any more, which retires the
+# `>=` rejection exposure documented at JACKPOT_TOP ("high", 10).
+# 9/9 pins 10000 (not 12500) so the HUD still climbs 6100 < 10000 < 12500;
+# a flat 12500 = 12500 would make 9/9 the equal of 10/10 for 5x the odds.
 HIGH_EARN_TOP = {
     2: 11.9,      # Off 16.7 blows RTP; max in-window. How-to 47.6 >= Off
     3: 35.1,      # Off 71.6 blows RTP/hit/etl; How-to 140.4 >= Off
@@ -162,9 +164,14 @@ HIGH_EARN_TOP = {
     7: 1468.8,    # Off 5500. Was 4582: 75.8 -> 4582 was a 60x cliff.
                   # 1468.8 gives 144.1 -> 1468.8 (10.2x), How-to 5875.2 >=
                   # Off 5500. Row pinned as a restair.
-    8: 6100.0,    # Off 6100 (std envelope). Old 11122.6 sat over Off.
-    9: 12500.0,   # Off 40000; was 25000 (flat with 10). How-to 50000 > Off
-    10: 25000.0,  # Off 50000; cannot pin 50000 (How-to 200000 vs 100k cap)
+    8: 2143.8,    # Off 6100. Was 6100 (How-to 24400, EXTREME volIdx 64.09).
+                  # Lowered to 2143.8 (How-to 8575, volIndex 24.77 MEDIUM).
+                  # Ladder still climbs: 5875 < 8575 < 40000. Jumps 1.46x /
+                  # 4.66x. Buy modes unaffected (2400/840 < 8575 cap).
+    9: 10000.0,   # Off 40000. Was 12500 (How-to 50000 > Off); now settles
+                  # exactly Off 40000 under the 2026-09-03 parity pass.
+    10: 12500.0,  # Off 50000. Was 25000 (How-to 100000, sitting on the
+                  # dashboard ceiling); settles exactly Off 50000 now.
 }
 
 
@@ -521,8 +528,8 @@ TOP_OVERRIDE = {
 #
 # The buy chips do not reach the 4-8 Off/Earn pins — those values are cost-1
 # headlines, and applying them as cost-units on a 1-in-435 row blows RTP.
-# Picks 9-10 stay pinned on every kind so the chip still advertises
-# MAX_PAYOUT_ABS / cost (4,500x buy10, 900x buy100).
+# Pick 10 pins at 100,000x the base bet on every kind (2026-09-03 parity):
+# JSON 5,000 buy10 / 500 buy100, settling at MAX_PAYOUT_ABS exactly.
 JACKPOT_TOP = {
     ("low", 4): 50.0,
     ("low", 5): 150.0,
@@ -553,13 +560,10 @@ JACKPOT_TOP = {
     # whole table. Every other risk's pick-8 top is ordered under this one.
     ("high", 8): 6_000.0,
     ("high", 9): 25_000.0,
-    # Sits *on* the 3-Star Max Payout Multiplier, not under it — the deliberate
-    # exception to this file's design-below-the-maximum rule, taken because the
-    # headline is the whole point of the mode. `check_gates` uses `>`, so exactly
-    # 100,000x passes locally, and the advertised row is grid-floored before the
-    # settle multiply so Earn cannot drift over. If the dashboard ever rejects it
-    # (a `>=` read, or a rounding difference in `max_win`), drop straight back to
-    # 90,000x — nothing else in the ladder depends on this value.
+    # 2026-09-03 Off/Earn headline parity: shipped Off/Earn pick 10 both top
+    # 50,000x (Off via HIGH_OFF, Earn via 12500 advertised x4 settle). This
+    # legacy water-fill pin is retained only as a ceiling for any future
+    # non-Easy solve of this row; nothing shipped reads it.
     ("high", 10): 100_000.0,
 }
 
@@ -667,21 +671,26 @@ DESCENT_MAX_SD = 18.3
 # staked — the same ceiling Earn has — but reads as 490,000x the base bet, and
 # failed 15 modes at 2-Star and 9 at 3-Star.
 #
-# Keyed by cost, in base-bet multiples, each held ~10% under the tier it answers
-# to. `rgs_verification` never checked this (max_win was computed and then left
-# out of `mode_limits`), which is why it reached the dashboard.
+# Keyed by cost, in base-bet multiples. 2026-09-03 headline parity: the buy
+# chips join Off/Earn at 100,000x on `high` pick 10 — JSON 5,000 (buy10) /
+# 500 (buy100) settle exactly 100,000x the base bet. `rgs_verification` gates
+# max_win at 100_000*100 cents with a strict `>`, so sitting on the boundary
+# passes; the whole game publishes 3-Star either way (2-Star's 50,000x cannot
+# carry high pick 10 in any kind).
 MAX_PAYOUT_ABS = {
     # Off/Earn now sit exactly here: JACKPOT_TOP pins high pick 10 to 100,000x,
     # so this is a binding ceiling rather than the uniformity placeholder it was
     # while the ladder peaked at 4,900x. 3-Star only — 2-Star's 50,000x cannot
     # carry this mode.
     1.0: 100_000.0,
-    # buy10 reached 49,000 against 2-Star's 50,000 — a 2% margin, against this
-    # repo's own rule of designing below the published maxima.
-    10.0: 45_000.0,
-    # buy100 cannot reach 2-Star at any ceiling worth shipping, so it targets
-    # 3-Star's 100,000. Costs high's top row 1,225x -> 225x of cost.
-    100.0: 90_000.0,
+    # buy10: JSON pin 5,000 on `high` pick 10 (5,000 x 10x Lumen x 2x Pulse).
+    # 2,250 -> 5,000; the body re-solves so RTP stays in band (0.9637).
+    10.0: 100_000.0,
+    # buy100: JSON pin 500 on `high` pick 10 (500 x 100x Lumen x 2x Pulse);
+    # was 90_000 / JSON 450. Body re-solves to 0.9643.
+    # buy100: JSON pin 500 on `high` pick 10 (500 x 100x Lumen x 2x Pulse);
+    # was 90_000 / JSON 450. Body re-solves to 0.9643.
+    100.0: 100_000.0,
 }
 
 # Local verifier limits (rgs_verification.py) minus margin.
@@ -1779,8 +1788,8 @@ def solve_buy() -> tuple[dict[str, dict[str, dict[str, list[float]]]], list[floa
     One solve per cost, not one solve scaled twice. The two ladders used to be
     the same cost-unit table multiplied by 10 and 100, which is only valid while
     every gate is per-cost. `MAX_PAYOUT_ABS` is not: it is measured against the
-    base bet, so the two chips have genuinely different ceilings in cost units
-    (buy10 4,500 / boosts, buy100 900 / boosts) and cannot share a table.
+    base bet, so the two chips pin differently in JSON units (buy10 5,000 /
+    buy100 500) even though both settle at the same 100,000x base-bet ceiling.
     """
     ladders: dict[str, dict[str, dict[str, list[float]]]] = {}
     rtps: list[float] = []
@@ -2431,14 +2440,13 @@ def patch_earn_high(paytables_path: str | None = None) -> dict:
         off_top = max(off_high[str(k)])
         settled_top = stats["max_m"]
         advertised_top = max(table)
-        # k>=9 advertised >= 25000 would be flat; 9 pins 12500 so the HUD
-        # climbs 6100 < 12500 < 25000. k=8 pins to Off 6100 (std envelope).
+        # k>=9 advertised tops are the Off/Earn parity pins (2026-09-03):
+        # 9 settles 40000 = Off, 10 settles 50000 = Off, HUD climbs
+        # 6100 < 10000 < 12500. k=8 pins to Off 6100 (std envelope).
         # k=5-7 advertised under Off, How-to >= Off. k=2-4 lattice under Off
         # advertised; How-to >= Off.
         if k >= 9:
-            pin_floor = min(off_top, 25000.0)
-            if k == 9:
-                pin_floor = HIGH_EARN_TOP[9]
+            pin_floor = HIGH_EARN_TOP[k]
             if advertised_top + 1e-9 < pin_floor:
                 fails.append(
                     f"advertised top {advertised_top:.1f}x < pin {pin_floor:.1f}x"

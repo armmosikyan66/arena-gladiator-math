@@ -12,22 +12,22 @@ assert max(pay["risks"]["high"]["10"]) == 50000.0
 assert front["risks"]["high"]["10"][-1] == 50000.0
 assert max(r["payout"] for r in books["modes"]["high_pick_10"]["books"]) / 100 == 50000.0
 
-assert pay["earn"]["high"]["10"][-1] == 25000.0
-assert front["earn"]["high"]["10"][-1] == 25000.0
+assert pay["earn"]["high"]["10"][-1] == 12500.0
+assert front["earn"]["high"]["10"][-1] == 12500.0
 earn_how = max(r["payout"] for r in books["modes"]["high_pick_10_earn"]["books"]) / 100
-assert earn_how == 100000.0, earn_how
+assert earn_how == 50000.0, earn_how
 
-assert pay["buy10"]["high"]["10"][-1] == 2250.0, pay["buy10"]["high"]["10"][-1]
-assert pay["buy100"]["high"]["10"][-1] == 450.0, pay["buy100"]["high"]["10"][-1]
-assert front["buy10"]["high"]["10"][-1] == 2250.0
-assert front["buy100"]["high"]["10"][-1] == 450.0
+assert pay["buy10"]["high"]["10"][-1] == 5000.0, pay["buy10"]["high"]["10"][-1]
+assert pay["buy100"]["high"]["10"][-1] == 500.0, pay["buy100"]["high"]["10"][-1]
+assert front["buy10"]["high"]["10"][-1] == 5000.0
+assert front["buy100"]["high"]["10"][-1] == 500.0
 
 b10 = books["modes"]["high_pick_10_buy10"]
 b100 = books["modes"]["high_pick_10_buy100"]
 how10 = max(r["payout"] for r in b10["books"]) / 100
 how100 = max(r["payout"] for r in b100["books"]) / 100
-assert abs(how10 / b10["cost"] - 4500.0) < 1e-6, how10
-assert abs(how100 / b100["cost"] - 900.0) < 1e-6, how100
+assert abs(how10 / b10["cost"] - 10000.0) < 1e-6, how10
+assert abs(how100 / b100["cost"] - 1000.0) < 1e-6, how100
 
 assert pay["earn"]["medium"]["10"][-1] == 5000.0
 assert front["earn"]["medium"]["10"][-1] == 5000.0

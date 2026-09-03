@@ -2,6 +2,85 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-03] fix | Earn high pick-8 HIGH→MEDIUM (4000→2143.8 advertised, 16000→8575 settle)
+- summary: wiki/analyses/headline-jackpot-ladder.md
+- touched: games/luma-keno/solve_paytables.py (`HIGH_EARN_TOP[8]` 4000→2143.8),
+  games/luma-keno/restaired_rows.py (earn high 8 pin),
+  games/luma-keno/easy_buy_high.py (`earn_how_to_cap[8]` 16000→8575),
+  games/luma-keno/paytables.json, web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json,
+  library/ (high_pick_8_earn books/LUTs/configs)
+- notes: Pick 8 was HIGH (volIndex 43.04, std 21.96) after the
+  EXTREME→HIGH fix. Lowered advertised top from 4000 to 2143.8
+  (settle 8575) which brings volIndex to 24.77 — solidly MEDIUM.
+  Ladder still climbs: 5875 < 8575 < 40000. RTP 0.9637, in band.
+  Buy modes unaffected (pick-8 vs-debit 2400/840 < 8575 cap).
+  Shape-lock CLEAN, rgs_verification OK, 160 modes 0 hard
+  failures, 0.3pp spread, 131 advisories (was 132 — one fewer
+  EXTREME mode). Picks 6, 7, 9 remain HIGH: pick 6 has no room
+  (Earn settle 2211 vs Off 2200), pick 7 can't reach MEDIUM
+  (best 32.63 at Off floor), pick 9 has zero room
+  (settle = Off = 40000, solver can't find lower-std row).
+- summary: wiki/analyses/headline-jackpot-ladder.md
+- touched: games/luma-keno/solve_paytables.py (`HIGH_EARN_TOP[8]` 6100→4000),
+  games/luma-keno/restaired_rows.py (earn high 8 pin),
+  games/luma-keno/easy_buy_high.py (`earn_how_to_cap[8]` 24400→16000),
+  games/luma-keno/paytables.json, web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json,
+  library/ (high_pick_8_earn books/LUTs/configs)
+- notes: Pick 8 was the only EXTREME Earn high mode (volIndex 64.09,
+  std 32.70). The ladder jumps were unbalanced: 7→8 was 4.15× then
+  8→9 was 1.64×. Lowered advertised top from 6100 to 4000 (settle
+  16000), which brings volIndex to 43.04 (HIGH) and balances the jumps
+  to 2.72× / 2.50×. Settle 16000 still > pick 7 (5875) and < pick 9
+  (40000), so the HUD ladder still climbs. RTP 0.9662, in band. Buy
+  modes unaffected: their pick-8 vs-debit (2400 buy10 / 840 buy100) is
+  well under the new 16000 cap. Shape-lock CLEAN, rgs_verification OK,
+  160 modes 0 hard failures, 0.321pp spread.
+
+## [2026-09-03] change | Buy10/Buy100 high pick-10 headline parity (both 100,000×)
+- summary: wiki/analyses/headline-jackpot-ladder.md, web/wiki/domain/keno-bonuses.md
+- touched: games/luma-keno/buy_bonus.py (`MAX_PAYOUT_ABS` 10→100k, 100→100k),
+  games/luma-keno/solve_paytables.py (`MAX_PAYOUT_ABS`, comments),
+  games/luma-keno/easy_buy_high.py (`JSON_MAX_LADDER[10]` 2250→5000,
+  `JSON_MAX_LADDER_BUY100[10]` 450→500, baked `EASY_BUY_HIGH`/`EASY_BUY_HIGH_BUY100`
+  pick-10 rows, `earn_how_to_cap` 9/10 stale→40k/50k),
+  games/luma-keno/paytables.json, web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, web/src/data/keno-par-sheet.json,
+  library/ (high_pick_10_buy10/buy100 books/LUTs/configs),
+  verify_mac_buy_high.py, web/scripts/top-row-headroom.mjs
+- notes: Buy chips were pinned under the 3-Star ceiling with a ~10% margin
+  (buy10 45,000 / buy100 90,000). Raised both to 100,000× the base bet on
+  `high` pick 10 — JSON 5,000 (buy10) / 500 (buy100), settling at exactly
+  100,000× (5000×10×2 / 500×100×2). Matches Off/Earn high pick 10's 50,000×
+  headline on the same 3-Star boundary. `rgs_verification` max_win gate is
+  100,000×100 cents with a strict `>`, so equality passes. Bodies re-solved
+  lock-clean (buy10 689.7→5000 ratio 7.25× under capped 8.0× last-catch;
+  buy100 399.9→500 ratio 1.25× under capped 8.0×). RTP 0.9637 / 0.9643,
+  both in band. vs-debit 10,000× / 1,000× the wager, well under Earn's
+  50,000×. Shape-lock canonical audit CLEAN (ceiling-bound top). 160 modes
+  still certified, 0 hard par-sheet failures, 0.3pp spread.
+
+## [2026-09-03] change | Off/Earn high pick-10 headline parity (both 50,000×)
+- summary: wiki/analyses/headline-jackpot-ladder.md, wiki/codebase/luma-keno.md
+- touched: games/luma-keno/solve_paytables.py (`HIGH_EARN_TOP`, `patch_earn_high`
+  pin_floor, legacy `JACKPOT_TOP` comment), games/luma-keno/restaired_rows.py
+  (earn high 9/10 pins), games/luma-keno/paytables.json, web/src/data/
+  keno-paytables.json, keno-books.json, keno-par-sheet.json, library/
+  (high_pick_8/9/10_earn books/LUTs/configs), verify_mac_earn_high.py,
+  verify_mac_buy_high.py
+- notes: Earn high pick 10 was advertised 25,000 settling 100,000 — sitting
+  exactly on the 3-Star Max Payout ceiling (a `>=` read on the dashboard
+  side rejects the publish). Re-pinned to 12,500 advertised (settles 50,000
+  = Off pick 10), pick 9 to 10,000 (settles 40,000 = Off pick 9) so the HUD
+  still climbs 6100 < 10000 < 12500. New rows are solve_row lock-clean with
+  the final catch at exactly 15×; rtp 0.9651 / 0.9653. Volatility drops
+  (pick 10 std 26.63→12.96, pick 9 26.54→21.99) — further from the EXTREME
+  band (18.3, 25.73]. House edge unchanged: all 160 modes stay in
+  0.963–0.966, spread 0.3pp (gate 0.5pp), 0 hard par-sheet failures.
+  rgs_verification SHA OK; pre-existing high_pick_7_buy100 P5K advisory
+  unchanged. Off `high_pick_10` was already 50,000 (HIGH_OFF) — untouched.
+
 ## [2026-09-03] change | Buy10 2/2 and 3/3 hierarchy (easy < classic < medium < high)
 - summary: wiki/codebase/luma-keno.md
 - touched: games/luma-keno/easy_buy_low.py, easy_buy_classic.py, easy_buy_medium.py,

@@ -37,18 +37,21 @@ RESTAIRED: dict[tuple[str, str, int], list[float]] = {
     # 10.72x mid cliff and the last catch 18.79x broke the 8-15x band. The
     # restair moves the wall to 0.5 -> 8.7 (17.4x wall allowance) and holds
     # the last catch at exactly 15x. Lock-clean, rtp 0.9651.
-    ("earn", "high", 8): [0.2, 0.5, 8.7, 52.0, 406.7, 6100.0],
-    # Earn high 9 at the new 12500 pin: solver rows pack the 6->7 body pair,
-    # this uniform ~5-6x ladder keeps the last catch at 15x. How-to 50000
-    # > Off 40000. Lock-clean, rtp 0.9654.
-    ("earn", "high", 9): [0.6, 4.7, 23.5, 129.6, 833.4, 12500.0],
-    # Earn high 10 at the 25000 cap-pinned top (How-to 100000 = the ceiling,
-    # so the fleet report grades the final catch as an ordinary step, max 8x).
-    # First restair ended 1703.9 -> 25000 (14.67x) - clean under the plain
-    # lock's 8-15x last-catch band, a cliff under the capped one. solve_row
-    # under the capped lock builds a uniform ~6x ladder ending 3125 -> 25000
-    # at exactly 8x. Lock-clean (capped, pick-aware), rtp 0.9655.
-    ("earn", "high", 10): [0.3, 0.8, 12.2, 74, 451, 3125, 25000.0],
+    ("earn", "high", 8): [0.2, 1.0, 12.2, 41.3, 143.0, 2143.8],
+    # Earn high 8 was 0.2/0.5/8.7/52.0/406.7/6100.0 (EXTREME volIdx 64.09).
+    # Then 0.2/0.6/10.7/49.8/266.7/4000.0 (HIGH volIdx 43.04).
+    # Now 2143.8 (settle 8575, MEDIUM volIdx 24.77). Ladder 5875 <
+    # 8575 < 40000 still climbs. Buy modes unaffected (2400/840 < 8575).
+    # Earn high 9 at the 10000 parity pin (2026-09-03, was 12500): settles
+    # 40000 = Off pick 9. solve_row under the plain lock builds a uniform ~5x
+    # ladder with the last catch at exactly 15x. How-to 40000 = Off 40000.
+    # Lock-clean, rtp 0.9651.
+    ("earn", "high", 9): [0.3, 5.1, 25.6, 131.5, 666.7, 10000.0],
+    # Earn high 10 at the 12500 parity pin (2026-09-03, was 25000): settles
+    # 50000 = Off pick 10, so the top no longer sits on the 100k dashboard
+    # ceiling. solve_row builds a uniform ~3.7x ladder ending 833.4 -> 12500
+    # at exactly 15x. How-to 50000 = Off 50000. Lock-clean, rtp 0.9653.
+    ("earn", "high", 10): [0.3, 1.0, 16.9, 62.8, 228.8, 833.4, 12500.0],
     # Earn high 5 was 1.6 / 2.1 / 439.3: the 4-of-5 body cell parked at 2.1x
     # (below a real win) and then cliffed 209x into the jackpot. Lowering the
     # top to the How-to floor (229.3, settles 917.2 >= Off 900) funds a real

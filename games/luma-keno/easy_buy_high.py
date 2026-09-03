@@ -7,8 +7,10 @@ well under Off high — prefer gradual hit-to-hit steps over Off/cap cliffs
 (old buy10 pick 6 was 0.9→996).
 
 How-to vs debit = 2 × JSON. Deep picks stay ≤ Earn high How-to and the
-dashboard Max Payout pin (buy10 JSON ≤ 2250; buy100 deep tops sit under
-the 450 pin on a separate ladder).
+dashboard Max Payout pin (buy10 JSON ≤ 5000; buy100 deep tops sit under
+the 500 pin on a separate ladder). 2026-09-03 parity: pick 10 pins at
+100,000x the base bet on both chips (5,000 / 500 × cost Lumen × 2 Pulse),
+matching Off/Earn high pick 10.
 
 Scope: **Buy high only.** buy100 uses a separate JSON_MAX ladder + baked
 bodies — 100× Lumen cannot fund buy10 deep tops without cliffs / illegal RTP.
@@ -59,7 +61,7 @@ JSON_MAX_LADDER = {
     7: 600.0,
     8: 1200.0,
     9: 1800.0,
-    10: 2250.0,  # Max Payout pin for buy10
+    10: 5000.0,  # Max Payout pin for buy10: 5000 × 10 × 2 = 100,000x base bet
 }
 
 ZERO_MASK = {
@@ -83,11 +85,11 @@ EASY_BUY_HIGH: dict[int, list[float]] = {
     7: [0.0, 0.0, 0.0, 0.9, 5.3, 38.7, 117.4, 600.0],
     8: [0.0, 0.0, 0.0, 0.0, 6.6, 14.6, 46.8, 160.0, 1200.0],
     9: [0.0, 0.0, 0.0, 1.1, 3.8, 9.9, 16.7, 57.7, 200.0, 1800.0],
-    10: [0.0, 0.0, 0.0, 0.8, 2.8, 6.5, 12.7, 43.8, 152.3, 529.4, 2250.0],
+    10: [0.0, 0.0, 0.0, 1.1, 2.4, 4.7, 16.7, 57.5, 199.2, 689.7, 5000.0],
 }
 
-#: buy100 JSON tops — climbing, under Max Payout 450, well below buy10 deep
-#: tops so the advertised chart is not the same strip at 100× Lumen.
+#: buy100 JSON tops — climbing, at Max Payout pin 500 on pick 10, well below
+#: buy10 deep tops so the advertised chart is not the same strip at 100× Lumen.
 JSON_MAX_LADDER_BUY100 = {
     2: 5.2,
     3: 5.5,
@@ -97,7 +99,7 @@ JSON_MAX_LADDER_BUY100 = {
     7: 420.0,
     8: 420.0,
     9: 420.0,
-    10: 450.0,
+    10: 500.0,  # 500 × 100 × 2 = 100,000x base bet (3-Star ceiling)
 }
 
 ZERO_MASK_BUY100 = {
@@ -119,7 +121,7 @@ EASY_BUY_HIGH_BUY100: dict[int, list[float]] = {
     7: [0.0, 0.0, 0.0, 0.0, 6.6, 52.6, 76.6, 420.0],
     8: [0.0, 0.0, 0.0, 0.0, 3.8, 29.8, 40.7, 84.0, 420.0],
     9: [0.0, 0.0, 0.0, 0.0, 3.2, 10.0, 53.7, 67.2, 84.0, 420.0],
-    10: [0.0, 0.0, 0.0, 0.0, 0.0, 8.9, 33.9, 73.6, 100.0, 360.0, 450.0],
+    10: [0.0, 0.0, 0.0, 0.0, 0.0, 8.4, 34.7, 79.3, 100.0, 399.9, 500.0],
 }
 
 EASY_BUY_HIGH_PICK1: dict[str, list[float]] = {
@@ -150,7 +152,7 @@ HIGH_BUY_CONFIG = BuyRiskConfig(
     climb_guards=200,
     prefer_exact_baked=True,
     buy_bonus_min_pick=None,
-    earn_how_to_cap={8: 24400.0, 9: 50000.0, 10: 100000.0},
+    earn_how_to_cap={8: 8575.0, 9: 40000.0, 10: 50000.0},
 )
 
 
