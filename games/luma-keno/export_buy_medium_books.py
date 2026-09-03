@@ -34,7 +34,7 @@ def export_buy_mode(k: int, risk: str, paytable: list[float], buy: str, cost: fl
         base = paytable[spin.total_hits]
         payout_int = int(round(settle_pay(base, spin.lumen_hit, spin.pulse, risk, buy) * 100))
         weight = spin_weight(
-            k, spin, risk, paying=paying, bought=True, placed=placed
+            k, spin, risk, paying=paying, bought=True, placed=placed, buy=buy
         )
         after_lumen = lumen_boost_applied(base, spin.lumen_hit, risk, buy)
         rows.append(

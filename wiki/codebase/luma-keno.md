@@ -86,17 +86,19 @@ denominated in **cost units**, scaled by the cost on export.
 
 **Buy 10× and Buy 100× (picks 1–10)** both place the Lumen mark on one of
 the player's numbers (`lumen_placed_on_pick`, `kenoStart.lumenPlaced`) but
-do **not** force that pick into the ten. Catch is hit-or-miss:
-P(lumenHit)=10/40=0.25, P(hit|h)=h/k. A full card always catches; h=0 never
-does. pick_1 uses the same contract (the only pick is marked; catching it is
-25%). Dashboard Base Mode STD is cost=1 only — `check_gates` does not apply
+do **not** force that pick into the ten. Catch is hit-or-miss on the ten
+(P=10/40=0.25, P(hit|h)=h/k) **or** extras covering every remaining pick
+(pick_1 extra-catch 2/30 of leftover → 0.30). A full card always catches;
+h=0 with extra_hits=0 never does. pick_1 uses the same contract. Dashboard
+Base Mode STD is cost=1 only — `check_gates` does not apply
 `STD_MIN` to buy chips.
 
 Lumen on a paying catch is **`BUY_LUMEN_BOOST`**: 10× on buy10, 100× on
-buy100 — not the Earn ×2. A miss leaves the advertised base. Pulse stays at
-the Earn rate (10%, ×2) and stacks, so hit+Pulse is 20× base. Dead rows stay
-dead. The boost is priced into the coefficients for a 25% catch, not a
-certain one — do not stack 10×/100× on the old always-catch tables. The
+buy100 — not the Earn ×2. A miss leaves the advertised base. Pulse is ×2
+on extra-open books (10% on picks 2–10; pick_1 uses the Earn per-risk
+slice except buy100 pick_1 classic 7% / medium 13%). Dead rows stay
+dead. The boost is priced into extra-cover catch as well — do not stack
+10×/100× on the old main-ten-only tables. The
 buy ladder uses a **0.1×-of-stake grid** in cost units (`0.01` / `0.001`)
 because a 0.1-of-cost cell ×100 Lumen is 1,000× the base bet and overshoots
 target. `lumen_pay` rounds to 0.1× the base bet

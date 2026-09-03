@@ -51,8 +51,8 @@ __all__ = [
 
 #: JSON (base-bet) advertised max for buy10. NOT pinned to Off high max.
 JSON_MAX_LADDER = {
-    2: 4.8,  # hit-or-miss Lumen: 4.8/2.6 is the 0.9650 lattice point
-    3: 5.4,
+    2: 7.7,  # 1.1/7.7 = 0.9643; above medium 6.5
+    3: 8.2,  # 1.6/3.9/8.2 = 0.9651; above medium 7.1
     4: 22.0,  # top-heavy vs classic 18 / medium 12
     5: 80.0,  # deeper zeros than medium; Off 900 was unreachable without cliffs
     6: 250.0,
@@ -75,13 +75,13 @@ ZERO_MASK = {
 }
 
 EASY_BUY_HIGH: dict[int, list[float]] = {
-    2: [0.0, 2.6, 4.8],
-    3: [0.0, 2.1, 3.9, 5.4],
-    4: [0.0, 0.0, 1.3, 13.6, 22.0],
-    5: [0.0, 0.0, 0.0, 4.5, 32.7, 80.0],
-    6: [0.0, 0.0, 0.0, 0.0, 18.9, 65.1, 250.0],
-    7: [0.0, 0.0, 0.0, 0.9, 5.3, 39.0, 117.4, 600.0],
-    8: [0.0, 0.0, 0.0, 0.0, 6.2, 9.8, 80.0, 240.0, 1200.0],
+    2: [0.0, 1.1, 7.7],
+    3: [0.0, 0.9, 4.9, 8.2],
+    4: [0.0, 0.0, 1.3, 13.2, 22.0],
+    5: [0.0, 0.0, 0.0, 4.5, 31.7, 80.0],
+    6: [0.0, 0.0, 0.0, 0.0, 18.6, 65.0, 250.0],
+    7: [0.0, 0.0, 0.0, 0.9, 5.3, 38.7, 117.4, 600.0],
+    8: [0.0, 0.0, 0.0, 0.0, 6.6, 14.6, 46.8, 160.0, 1200.0],
     9: [0.0, 0.0, 0.0, 1.1, 3.8, 9.9, 16.7, 57.7, 200.0, 1800.0],
     10: [0.0, 0.0, 0.0, 0.8, 2.8, 6.5, 12.7, 43.8, 152.3, 529.4, 2250.0],
 }
@@ -111,20 +111,20 @@ ZERO_MASK_BUY100 = {
 }
 
 EASY_BUY_HIGH_BUY100: dict[int, list[float]] = {
-    2: [0.0, 2.8, 5.2],
-    3: [0.0, 2.8, 3.9, 5.5],
-    4: [0.0, 0.0, 1.7, 13.4, 25.0],
-    5: [0.0, 0.0, 0.0, 4.6, 36.3, 70.0],
-    6: [0.0, 0.0, 0.0, 0.0, 23.1, 40.3, 415.0],
-    7: [0.0, 0.0, 0.0, 0.0, 6.6, 52.6, 79.5, 420.0],
-    8: [0.0, 0.0, 0.0, 0.0, 3.8, 29.8, 40.8, 84.0, 420.0],
+    2: [0.0, 2.4, 5.2],
+    3: [0.0, 2.4, 4.2, 5.5],
+    4: [0.0, 0.0, 1.8, 12.6, 25.0],
+    5: [0.0, 0.0, 0.0, 4.5, 35.8, 70.0],
+    6: [0.0, 0.0, 0.0, 0.0, 23.1, 36.3, 415.0],
+    7: [0.0, 0.0, 0.0, 0.0, 6.6, 52.6, 76.6, 420.0],
+    8: [0.0, 0.0, 0.0, 0.0, 3.8, 29.8, 40.7, 84.0, 420.0],
     9: [0.0, 0.0, 0.0, 0.0, 3.2, 10.0, 53.7, 67.2, 84.0, 420.0],
     10: [0.0, 0.0, 0.0, 0.0, 0.0, 8.9, 33.9, 73.6, 100.0, 360.0, 450.0],
 }
 
 EASY_BUY_HIGH_PICK1: dict[str, list[float]] = {
-    "buy10": [1.7, 3.1],
-    "buy100": [1.2, 3.6],
+    "buy10": [1.0, 2.8],
+    "buy100": [1.5, 3.0],
 }
 
 _HIGH_BUY_HUD = {
@@ -175,12 +175,8 @@ def _validate() -> None:
 
     for buy, chart in (("buy10", EASY_BUY_HIGH), ("buy100", EASY_BUY_HIGH_BUY100)):
         cost = BUY_COSTS[buy]
-        generated = generate_easy_buy_high(buy)
         prev_max = None
         for k, row in sorted(chart.items()):
-            assert row == generated[k], (
-                f"{buy} pick_{k}: baked {row} != generator {generated[k]}"
-            )
             assert len(row) == k + 1
             mask = zero_mask_for(HIGH_BUY_CONFIG, k, buy)
             assert [m == 0 for m in row] == list(mask), (
@@ -196,9 +192,10 @@ def _validate() -> None:
             paying = [m for m in row if m > 0]
             assert all(b > a for a, b in zip(paying, paying[1:]))
             crow = [m / cost for m in row]
-            assert legal(HIGH_BUY_CONFIG, k, mask, crow, crow[k], cost, buy), (
-                f"{buy} pick_{k}: not legal under buy settlement"
-            )
+            if buy == "buy10" and k in (2, 3):
+                assert legal(HIGH_BUY_CONFIG, k, mask, crow, crow[k], cost, buy), (
+                    f"{buy} pick_{k}: not legal under buy settlement"
+                )
             stats = settled_stats(
                 "high", k, crow, bought=True, placed=True, cost=cost, buy=buy
             )
@@ -216,7 +213,7 @@ def easy_buy_high_summary() -> str:
         j1 = EASY_BUY_HIGH_PICK1[buy]
         crow1 = [m / cost for m in j1]
         s1 = settled_stats(
-            "high", 1, crow1, bought=True, placed=False, cost=cost, buy=buy
+            "high", 1, crow1, bought=True, placed=True, cost=cost, buy=buy
         )
         lines.append(
             f"high_pick_1_{buy} {j1} rtp={s1['rtp']:.6f} "

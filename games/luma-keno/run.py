@@ -59,6 +59,7 @@ def write_exact_lookup_tables(gamestate: GameState) -> None:
                         paying=paying,
                         bought=buy is not None,
                         placed=lumen_placed_on_pick(buy, k),
+                        buy=buy,
                     )
                 else:
                     weight = off_weight(k, spin, risk)

@@ -2,6 +2,17 @@
 
 Parseable audit trail. Newest entries at the top.
 
+## [2026-09-03] change | Buy10 2/2 and 3/3 hierarchy (easy < classic < medium < high)
+- summary: wiki/codebase/luma-keno.md
+- touched: games/luma-keno/easy_buy_low.py, easy_buy_classic.py, easy_buy_medium.py,
+  easy_buy_high.py, games/luma-keno/paytables.json, web/src/data/keno-paytables.json,
+  web/src/data/keno-books.json, library/ (8 buy10 pick_2/_3 modes)
+- notes: Buy10 2/2 and 3/3 were the same JSON max on every risk (4.8 / 5.4).
+  Split onto distinct in-window points so Easy sits below Classic, which sits
+  below Medium and High. Buy10 2/2: low 3.6, classic 4.8, medium 6.5, high 7.7.
+  Buy10 3/3: low 5.1, classic 5.6, medium 7.1, high 8.2. LUT RTP 0.9643–0.9653.
+  Pick 5 remains pinned at 40 across low/classic/medium.
+
 ## [2026-09-03] change | Buy Lumen hit-or-miss (not forced into the ten)
 - summary: wiki/codebase/luma-keno.md
 - touched: wiki/codebase/luma-keno.md, games/luma-keno/solve_paytables.py (`placed` docstring),

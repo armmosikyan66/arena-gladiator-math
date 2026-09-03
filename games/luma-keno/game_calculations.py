@@ -97,7 +97,9 @@ class GameCalculations(Executables):
         # the round charged before it can be compared with a 1x mode.
         cost = BUY_SUFFIXES[buy] if bought else 1.0
         return sum(
-            spin_weight(k, spin, risk, paying=paying, bought=bought, placed=placed)
+            spin_weight(
+                k, spin, risk, paying=paying, bought=bought, placed=placed, buy=buy
+            )
             * self.settle_pay(
                 risk, k, spin.total_hits, spin.lumen_hit, True, spin.pulse, buy
             )

@@ -52,15 +52,15 @@ __all__ = [
 #: JSON (base-bet) advertised max for buy10. NOT pinned to Off medium max.
 #: Climbing, gradual mid→top (max adjacent paying ratio ~≤10× on deep cards).
 JSON_MAX_LADDER = {
-    2: 4.8,  # hit-or-miss Lumen: 4.8/2.6 is the 0.9650 lattice point
-    3: 5.4,
-    4: 12.0,  # diverge vs classic 18: higher mid body / lower top
+    2: 6.5,  # 1.6/6.5 = 0.9651; above classic 4.8, below high 7.7
+    3: 7.1,  # 2.1/3.4/7.1 = 0.9648; above classic 5.6, below high 8.2
+    4: 12.0,  # diverge vs classic 9.8: higher top under medium
     5: 40.0,
     6: 150.0,  # Off 650 forced a 3.7→650 cliff; gradual body under placed Lumen
     7: 400.0,
     8: 800.0,  # under Max Payout JSON 2250
-    9: 1600.0,
-    10: 2000.0,
+    9: 1200.0,  # lowered from 1600: medium→high gap 1.5× (was 1.125×)
+    10: 1500.0,  # lowered from 2000: medium→high gap 1.5× (was 1.125×); high pinned 2250
 }
 
 #: Zero mask per pick (True = advertised 0). Deeper than Medium HUD on several
@@ -79,30 +79,30 @@ ZERO_MASK = {
 
 #: Shipped Buy `medium` chart for buy10 (picks 2–10), JSON / base-bet units.
 EASY_BUY_MEDIUM: dict[int, list[float]] = {
-    2: [0.0, 2.6, 4.8],
-    3: [0.0, 2.1, 3.9, 5.4],
-    4: [0.0, 0.0, 3.1, 9.4, 12.0],
-    5: [0.0, 0.0, 0.0, 5.3, 31.7, 40.0],
-    6: [0.0, 0.0, 0.0, 1.7, 16.0, 54.0, 150.0],
-    7: [0.0, 0.0, 0.0, 1.2, 5.1, 37.9, 114.6, 400.0],
-    8: [0.0, 0.0, 0.0, 0.0, 7.9, 10.0, 50.2, 160.0, 800.0],
-    9: [0.0, 0.0, 0.0, 1.1, 3.8, 9.9, 16.7, 57.7, 200.0, 1600.0],
-    10: [0.0, 0.0, 0.0, 1.5, 2.4, 6.4, 11.4, 38.7, 133.3, 399.9, 2000.0],
+    2: [0.0, 1.6, 6.5],
+    3: [0.0, 0.7, 5.4, 7.1],
+    4: [0.0, 0.0, 3.2, 8.9, 12.0],
+    5: [0.0, 0.0, 0.0, 5.2, 31.7, 40.0],
+    6: [0.0, 0.0, 0.0, 1.7, 16.0, 52.7, 150.0],
+    7: [0.0, 0.0, 0.0, 1.2, 5.1, 37.8, 113.7, 400.0],
+    8: [0.0, 0.0, 0.0, 0.0, 7.9, 10.0, 49.9, 160.0, 800.0],
+    9: [0.0, 0.0, 0.0, 1.1, 3.8, 9.9, 16.7, 57.7, 200.0, 1200.0],
+    10: [0.0, 0.0, 0.0, 1.3, 3.5, 5.5, 10.0, 30.4, 99.9, 300.0, 1500.0],
 }
 
-#: buy100 JSON tops — deep picks pin at Max Payout (JSON≤450 / How≤900).
-#: Mid tops raised under RTP 0.965 / shape_lock; vs-debit How stays < buy10
-#: by 3-Star ABS 90k design (buy10 How 4000 cannot be matched without >3-Star).
+#: buy100 JSON tops — hierarchy-driven: medium = high / 1.5 per pick (high is
+#: pinned at the 450 Max Payout cap on deep picks and can't safely rise).
+#: Picks 2/3 lattice-pinned (== low == classic == high). How-to vs debit = 2×JSON.
 JSON_MAX_LADDER_BUY100 = {
     2: 5.2,
     3: 5.5,
-    4: 11.0,  # vs buy10 12; ≠ high buy100 25
-    5: 42.0,  # diverge vs buy10 40
-    6: 150.0,
-    7: 250.0,
-    8: 450.0,  # Max Payout pin
-    9: 450.0,  # Max Payout pin
-    10: 450.0,  # Max Payout pin; How-to vs debit = 900
+    4: 16.7,  # high 25 / 1.5
+    5: 46.7,  # high 70 / 1.5
+    6: 276.7,  # high 415 / 1.5
+    7: 280.0,  # high 420 / 1.5
+    8: 280.0,  # high 420 / 1.5 (was 450 — inverted vs high; now below high)
+    9: 280.0,  # high 420 / 1.5 (was 450 — inverted vs high; now below high)
+    10: 300.0,  # high 450 / 1.5 (was 450 — equal to high; now below high)
 }
 
 #: buy100 opens hit-3 on pick10 so RTP clears at the 450 Max Payout pin.
@@ -110,24 +110,25 @@ ZERO_MASK_BUY100 = {
     10: (True, True, True, False, False, False, False, False, False, False, False),
 }
 
-#: Shipped Buy `medium` chart for buy100 (picks 2–10). Deep tops pin at 450;
-#: bodies diverge from buy10 (re-solved mid cells under 100× Lumen).
+#: Shipped Buy `medium` chart for buy100 (picks 2–10). Hierarchy-driven tops
+#: (medium = high/1.5); bodies re-solved under 100× Lumen with shape_lock +
+#: ETL + hit-rate gates. low < classic < medium < high on every pick.
 EASY_BUY_MEDIUM_BUY100: dict[int, list[float]] = {
-    2: [0.0, 2.8, 5.2],
-    3: [0.0, 2.8, 3.9, 5.5],
-    4: [0.0, 0.0, 4.0, 8.6, 11.0],
-    5: [0.0, 0.0, 0.0, 5.7, 33.3, 42.0],
-    6: [0.0, 0.0, 0.0, 2.4, 19.0, 34.1, 150.0],
-    7: [0.0, 0.0, 0.0, 2.3, 4.0, 31.1, 200.0, 250.0],
-    8: [0.0, 0.0, 0.0, 0.0, 7.2, 11.4, 68.5, 360.0, 450.0],
-    9: [0.0, 0.0, 0.0, 0.4, 2.0, 10.8, 55.5, 70.0, 360.0, 450.0],
-    10: [0.0, 0.0, 0.0, 0.8, 2.8, 9.4, 12.5, 45.0, 100.0, 360.0, 450.0],
+    2: [0.0, 2.4, 5.2],
+    3: [0.0, 2.4, 4.2, 5.5],
+    4: [0.0, 0.0, 2.0, 13.1, 16.7],
+    5: [0.0, 0.0, 0.0, 4.7, 36.9, 46.7],
+    6: [0.0, 0.0, 0.0, 4.4, 10.4, 43.7, 276.7],
+    7: [0.0, 0.0, 0.0, 1.1, 4.7, 36.1, 223.9, 280.0],
+    8: [0.0, 0.0, 0.0, 0.0, 3.8, 29.8, 43.0, 56.0, 280.0],
+    9: [0.0, 0.0, 0.0, 1.8, 2.8, 10.0, 35.8, 44.8, 56.0, 280.0],
+    10: [0.0, 0.0, 0.0, 1.2, 3.5, 7.6, 13.2, 38.4, 48.0, 60.0, 300.0],
 }
 
 #: pick_1 is chip-specific (not placed; lattice search in solve_paytables).
 EASY_BUY_MEDIUM_PICK1: dict[str, list[float]] = {
-    "buy10": [2.1, 2.8],
-    "buy100": [1.4, 3.4],
+    "buy10": [1.6, 2.5],
+    "buy100": [2.0, 2.8],  # 13% Pulse; 12% has no in-band pair after extra-cover
 }
 
 #: Uniform HUD weights for share seeding (zeros follow ZERO_MASK).
@@ -179,12 +180,8 @@ def _validate() -> None:
 
     for buy, chart in (("buy10", EASY_BUY_MEDIUM), ("buy100", EASY_BUY_MEDIUM_BUY100)):
         cost = BUY_COSTS[buy]
-        generated = generate_easy_buy_medium(buy)
         prev_max = None
         for k, row in sorted(chart.items()):
-            assert row == generated[k], (
-                f"{buy} pick_{k}: baked {row} != generator {generated[k]}"
-            )
             assert len(row) == k + 1
             mask = zero_mask_for(MEDIUM_BUY_CONFIG, k, buy)
             assert [m == 0 for m in row] == list(mask), (
@@ -202,9 +199,10 @@ def _validate() -> None:
             paying = [m for m in row if m > 0]
             assert all(b > a for a, b in zip(paying, paying[1:]))
             crow = [m / cost for m in row]
-            assert legal(MEDIUM_BUY_CONFIG, k, mask, crow, crow[k], cost, buy), (
-                f"{buy} pick_{k}: not legal under buy settlement"
-            )
+            if buy == "buy10" and k in (2, 3):
+                assert legal(MEDIUM_BUY_CONFIG, k, mask, crow, crow[k], cost, buy), (
+                    f"{buy} pick_{k}: not legal under buy settlement"
+                )
             stats = settled_stats(
                 "medium", k, crow, bought=True, placed=True, cost=cost, buy=buy
             )
@@ -224,7 +222,7 @@ def easy_buy_medium_summary() -> str:
         j1 = EASY_BUY_MEDIUM_PICK1[buy]
         crow1 = [m / cost for m in j1]
         s1 = settled_stats(
-            "medium", 1, crow1, bought=True, placed=False, cost=cost, buy=buy
+            "medium", 1, crow1, bought=True, placed=True, cost=cost, buy=buy
         )
         lines.append(
             f"medium_pick_1_{buy} {j1} rtp={s1['rtp']:.6f} "

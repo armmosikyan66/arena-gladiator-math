@@ -148,11 +148,26 @@ PULSE_CHANCE_PICK_ONE_PCT = {
     "medium": 12,    # 0.2 / 2.9
     "high": 6,       # 0.1 / 3.2
 }
+# buy100 pick_1 extra-cover raises P(catch) to 0.30. At Earn pick_1 pulse
+# rates the 0.1× advertised pair has no MODE_RTP_BAND point for classic
+# (3.0 → 0.936, 3.1 → 0.9672) or medium (2.8 → 0.956, 2.9 → 0.974).
+# A 1–3pp Pulse nudge on this chip/mode only puts a miss<hit pair in band.
+# buy10 pick_1 keeps Earn's rates (its lattice already works at 0.30).
+PULSE_CHANCE_BUY100_PICK_ONE_PCT = {
+    "low": 10,
+    "classic": 7,
+    "medium": 13,
+    "high": 6,
+}
 
 
-def pulse_chance_pct(risk: str, k: int) -> int:
-    """Pulse roll rate among extra-open books for this risk and pick count."""
-    return PULSE_CHANCE_PICK_ONE_PCT[risk] if k == 1 else PULSE_CHANCE_PCT
+def pulse_chance_pct(risk: str, k: int, buy: str | None = None) -> int:
+    """Pulse roll rate among extra-open books for this risk, pick count, chip."""
+    if k == 1:
+        if buy == "buy100":
+            return PULSE_CHANCE_BUY100_PICK_ONE_PCT[risk]
+        return PULSE_CHANCE_PICK_ONE_PCT[risk]
+    return PULSE_CHANCE_PCT
 # high was 5.0, which put 69-74% of the return on picks 5-10 into a channel that
 # pays on under 3% of rounds: the base table was left doing a quarter of its
 # nominal job, so a session read as a flat line punctuated by rare spikes.
@@ -237,14 +252,19 @@ class SpinCriteria:
 BUY_SUFFIXES = {"buy10": 10.0, "buy100": 100.0}
 
 #: Both buy chips place the Lumen mark on one of the player's picks (including
-#: pick_1). The mark is *not* forced into the ten: catch is hit-or-miss.
-#: P(lumenHit) = 10/40 = 0.25 for every pick size; P(lumenHit | h) = h/k.
-#: A full card (h=k) always catches. Hit on a paying row pays BUY_LUMEN_BOOST
-#: (10× / 100×); a miss leaves the advertised base. Pulse ×2 still rolls on
-#: 10% of bought-extra books. Dead rows stay dead.
+#: pick_1). The mark is *not* forced into the ten: catch is hit-or-miss on the
+#: main ten (P=10/40=0.25, P(hit|h)=h/k). Bought extras are two lights from
+#: the leftover 30, so they can land on a missed mark. When they cover every
+#: remaining pick (pick_1 extra catch; a near-miss extra that hits the last
+#: number) that is a catch and pays BUY_LUMEN_BOOST. A miss leaves the
+#: advertised base. Pulse ×2 rolls on extra-open books (10% on picks 2–10;
+#: pick_1 uses the Earn per-risk slice, except buy100 pick_1 — see
+#: PULSE_CHANCE_BUY100_PICK_ONE_PCT). Dead
+#: rows stay dead.
 #:
 #: Sample space is C(40, k) · k · scale (ordinary hypergeometric × mark slots
-#: among the k picks). This is not Earn: Earn marks one of the drawn ten.
+#: among the k picks). This is not Earn: Earn marks one of the drawn ten, so
+#: extras can never catch a missed star.
 GUARANTEED_LUMEN_BUYS = frozenset({"buy10", "buy100"})
 MIN_PLACED_PICKS = 1
 
@@ -424,13 +444,14 @@ def parse_spin_criteria(criteria: str) -> SpinCriteria:
 def lumen_books_for_hits(
     hits: int, drawn: int = DRAWN, placed: bool = False, k: int = 0
 ) -> list[bool]:
-    """Which lumenHit flags exist at this hit count.
+    """Which lumenHit flags exist at this *main* hit count.
 
     Default: the mark is one of the `drawn` numbers, so a partial catch still
     splits — some of those numbers are picks, some are not.
 
-    `placed` (buy 10× / 100×): the mark is one of the k picks, not forced
-    into the ten. h=0 never catches; h=k always catches; partial cards split.
+    `placed` (buy 10× / 100×): catch is the 12-light draw, so extras matter.
+    Use `lumen_books_for_placed` when extra_hits is known. This helper is the
+    main-ten marginal (h=0 never in the ten; h=k always).
     """
     if placed:
         if hits <= 0:
@@ -442,6 +463,22 @@ def lumen_books_for_hits(
         return [False]
     if hits >= drawn:
         return [True]
+    return [False, True]
+
+
+def lumen_books_for_placed(k: int, main_hits: int, extra_hits: int) -> list[bool]:
+    """Placed Lumen flags for this (main, extra) pair.
+
+    Catch = the marked pick is in the main ten, or extras land on every
+    remaining pick (so the missed mark is necessarily one of those extras).
+    """
+    remaining = k - main_hits
+    if remaining <= 0:
+        return [True]
+    if extra_hits >= remaining:
+        return [True]
+    if main_hits <= 0:
+        return [False]
     return [False, True]
 
 
@@ -461,6 +498,21 @@ def lumen_hit_factor(
     return hits if lumen_hit else drawn - hits
 
 
+def extra_ways(
+    pick_pool: int,
+    miss_pool: int,
+    extra_hits: int,
+    extra_n: int = EXTRA_N,
+) -> int:
+    """Ways to draw `extra_n` extras with `extra_hits` from a pick pool."""
+    miss_draw = extra_n - extra_hits
+    if extra_hits < 0 or miss_draw < 0 or pick_pool < 0 or miss_pool < 0:
+        return 0
+    if extra_hits > pick_pool or miss_draw > miss_pool:
+        return 0
+    return comb(pick_pool, extra_hits) * comb(miss_pool, miss_draw)
+
+
 def extra_pair_weight(
     k: int,
     main_hits: int,
@@ -470,12 +522,28 @@ def extra_pair_weight(
 ) -> int:
     remaining_picks = k - main_hits
     remaining_miss = rest - remaining_picks
-    miss_draw = extra_n - extra_hits
-    if extra_hits < 0 or miss_draw < 0:
-        return 0
-    if extra_hits > remaining_picks or miss_draw > remaining_miss:
-        return 0
-    return comb(remaining_picks, extra_hits) * comb(remaining_miss, miss_draw)
+    return extra_ways(remaining_picks, remaining_miss, extra_hits, extra_n)
+
+
+def placed_mark_weight(
+    k: int,
+    spin: SpinCriteria,
+    drawn: int = DRAWN,
+    rest: int = REST,
+) -> int:
+    """Draw × mark-slot × extra-pair ways for placed Lumen.
+
+    Main-ten catch is the usual `h` / `k-h` split. When extras cover every
+    remaining pick the missed mark is in those extras, so every mark slot is
+    a catch and a miss book is impossible.
+    """
+    draw_w = base_hit_weight(k, spin.main_hits, drawn, rest)
+    remaining = k - spin.main_hits
+    pair = extra_pair_weight(k, spin.main_hits, spin.extra_hits, rest=rest)
+    if remaining > 0 and spin.extra_hits >= remaining:
+        return draw_w * k * pair if spin.lumen_hit else 0
+    factor = spin.main_hits if spin.lumen_hit else remaining
+    return draw_w * factor * pair
 
 
 def extra_hit_js(k: int, main_hits: int) -> list[int]:
@@ -547,7 +615,21 @@ def spin_outcomes(
 ) -> list[SpinCriteria]:
     out: list[SpinCriteria] = []
     for main_hits in range(k + 1):
-        for lumen_hit in lumen_books_for_hits(main_hits, drawn, placed, k):
+        if placed:
+            # Bought extras do not depend on the catch flag. Lumen flags
+            # depend on extra_hits: extras that cover every remaining pick
+            # (or that include the marked remaining pick) are a catch.
+            extra_opts = extra_outcomes(k, main_hits, False, paying, bought)
+            for extras, reason, extra_hits in extra_opts:
+                for lumen_hit in lumen_books_for_placed(k, main_hits, extra_hits):
+                    for pulse in ((False, True) if extras else (False,)):
+                        out.append(
+                            SpinCriteria(
+                                main_hits, lumen_hit, extras, reason, extra_hits, pulse
+                            )
+                        )
+            continue
+        for lumen_hit in lumen_books_for_hits(main_hits, drawn, False, k):
             for extras, reason, extra_hits in extra_outcomes(
                 k, main_hits, lumen_hit, paying, bought
             ):
@@ -592,18 +674,23 @@ def spin_weight(
     paying: frozenset[int] | None = None,
     bought: bool = False,
     placed: bool = False,
+    buy: str | None = None,
 ) -> int:
-    base = (
-        base_hit_weight(k, spin.main_hits, drawn, rest, placed)
-        * lumen_hit_factor(spin.main_hits, spin.lumen_hit, drawn, k, placed)
-    )
+    if placed:
+        base = placed_mark_weight(k, spin, drawn, rest)
+        pair = 1
+    else:
+        base = (
+            base_hit_weight(k, spin.main_hits, drawn, rest, placed)
+            * lumen_hit_factor(spin.main_hits, spin.lumen_hit, drawn, k, placed)
+        )
+        pair = extra_pair_weight(k, spin.main_hits, spin.extra_hits)
     pair_total = comb(rest, EXTRA_N)
-    pair = extra_pair_weight(k, spin.main_hits, spin.extra_hits)
     chance = EXTRA_CHANCE_PCT[risk]
     # The Pulse split only exists on extra-open books; a closed-extras
     # round carries the full denominator because it never rolls.
     if spin.extras:
-        pulse_pct = pulse_chance_pct(risk, k)
+        pulse_pct = pulse_chance_pct(risk, k, buy)
         pulse_part = (
             pulse_pct if spin.pulse else (CHANCE_DENOM - pulse_pct)
         )
@@ -714,16 +801,19 @@ def effective_coeff(
     """RTP = sum_h coeff[h] * advertised[h] when advertised[h] > 0 iff h in paying.
 
     Lumen and Pulse are priced in: a paying row that is caught contributes
-    boost * P; Pulse (×2 on every risk) on `pulse_chance_pct(risk, k)` of the
-    books whose extras open — 10% on picks 2–10, a per-risk slice on pick_1
-    so the advertised hit can follow Off's miss ladder. Closed-extras rounds
-    never roll it. Extras from Lumen only open when main_hits is in `paying`.
+    boost * P; Pulse (×2 on every risk) on `pulse_chance_pct(risk, k, buy)` of
+    the books whose extras open — 10% on picks 2–10, a per-risk slice on
+    pick_1 so the advertised hit can follow Off's miss ladder (buy100 pick_1
+    uses a slightly different slice; see PULSE_CHANCE_BUY100_PICK_ONE_PCT).
+    Closed-extras rounds never roll it. Extras from Lumen only open when
+    main_hits is in `paying`.
 
     `bought` forces the extras open, which is the buy chips' whole product. It
     shifts weight into the higher total-hit buckets rather than adding a
     channel, so the coefficients stay a plain RTP decomposition.
 
-    `placed` sits the mark on a pick (hit-or-miss; P(catch)=0.25).
+    `placed` sits the mark on a pick (hit-or-miss on the ten; extras that
+    cover every remaining pick also catch).
     `buy` selects BUY_LUMEN_BOOST (10× / 100×) instead of Earn ×2.
     """
     total = weight_total(k, placed=placed)
@@ -737,7 +827,9 @@ def effective_coeff(
         if spin.pulse:
             factor *= PULSE_BOOST[risk]
         coeff[hits] += (
-            spin_weight(k, spin, risk, paying=paying, bought=bought, placed=placed)
+            spin_weight(
+                k, spin, risk, paying=paying, bought=bought, placed=placed, buy=buy
+            )
             * factor
             / total
         )
@@ -757,7 +849,9 @@ def settled_pairs(
     paying = paying_from_table(table)
     return [
         (
-            spin_weight(k, spin, risk, paying=paying, bought=bought, placed=placed),
+            spin_weight(
+                k, spin, risk, paying=paying, bought=bought, placed=placed, buy=buy
+            ),
             settle_pay(
                 table[spin.total_hits], spin.lumen_hit, spin.pulse, risk, buy, cost
             ),
@@ -1016,6 +1110,23 @@ assert all(
     for k in (1, 5, 10)
     for r in ("classic", "medium", "low", "high")
 )
+assert all(
+    abs(
+        sum(
+            spin_weight(1, s, r, bought=True, placed=True, buy="buy100")
+            for s in spin_outcomes(1, bought=True, placed=True)
+            if s.pulse
+        )
+        / sum(
+            spin_weight(1, s, r, bought=True, placed=True, buy="buy100")
+            for s in spin_outcomes(1, bought=True, placed=True)
+            if s.extras
+        )
+        - PULSE_CHANCE_BUY100_PICK_ONE_PCT[r] / CHANCE_DENOM
+    )
+    < 1e-12
+    for r in ("classic", "medium", "low", "high")
+), "buy100 pick_1 Pulse split is not PULSE_CHANCE_BUY100_PICK_ONE_PCT"
 assert sum(spin_weight(1, spin, "classic") for spin in spin_outcomes(1)) == comb(40, 1) * DRAWN * weight_scale()
 assert sum(spin_weight(5, spin, "classic") for spin in spin_outcomes(5)) == comb(40, 5) * DRAWN * weight_scale()
 assert sum(
@@ -1034,33 +1145,50 @@ assert all(
     weight_total(k, placed=True) == comb(POOL, k) * k * weight_scale()
     for k in range(MIN_PLACED_PICKS, 11)
 ), "placed weight_total is not C(40,k)·k·scale"
-# Catch rate is 10/40 = 0.25 for every pick size (mark on a pick, not forced).
-assert all(
-    abs(
-        sum(
-            spin_weight(k, spin, r, bought=True, placed=True)
-            for spin in spin_outcomes(k, bought=True, placed=True)
-            if spin.lumen_hit
-        )
-        / weight_total(k, placed=True)
-        - DRAWN / POOL
+# Catch: 10/40 in the ten, plus extras that cover every remaining pick.
+# pick_1 extra-catch is 2/30 of the leftover 30 → 0.30. Deeper cards add only
+# the near-miss extra that hits the last remaining number(s).
+PLACED_PICK_ONE_CATCH = DRAWN / POOL + (1 - DRAWN / POOL) * EXTRA_N / REST
+assert abs(PLACED_PICK_ONE_CATCH - 0.30) < 1e-12
+assert abs(
+    sum(
+        spin_weight(1, spin, "classic", bought=True, placed=True)
+        for spin in spin_outcomes(1, bought=True, placed=True)
+        if spin.lumen_hit
     )
-    < 1e-12
+    / weight_total(1, placed=True)
+    - PLACED_PICK_ONE_CATCH
+) < 1e-12, "pick_1 placed extra-catch is not 0.30"
+assert all(
+    sum(
+        spin_weight(k, spin, r, bought=True, placed=True)
+        for spin in spin_outcomes(k, bought=True, placed=True)
+        if spin.lumen_hit
+    )
+    / weight_total(k, placed=True)
+    >= DRAWN / POOL - 1e-12
     for k in range(MIN_PLACED_PICKS, 11)
     for r in ("classic", "medium")
-), "placed Lumen catch rate is not 0.25"
-# h=0 never catches; h=k always catches.
+), "placed Lumen catch rate dropped below 0.25"
+# Closed extras never catch a zero-main card; extras can. Full main always catches.
 assert all(
-    (not s.lumen_hit) if s.main_hits == 0 else True
+    (not s.lumen_hit) if s.main_hits == 0 and s.extra_hits == 0 else True
     for k in range(MIN_PLACED_PICKS, 11)
     for s in spin_outcomes(k, bought=True, placed=True)
-), "placed Lumen caught on a zero-hit card"
+), "placed Lumen caught on a zero-light card"
 assert all(
     s.lumen_hit
     for k in range(MIN_PLACED_PICKS, 11)
     for s in spin_outcomes(k, bought=True, placed=True)
     if s.main_hits == k
 ), "placed Lumen missed a full card"
+# Extras that land on every remaining pick (the near-miss extra catch) are a hit.
+assert all(
+    s.lumen_hit
+    for k in range(MIN_PLACED_PICKS, 11)
+    for s in spin_outcomes(k, bought=True, placed=True)
+    if (k - s.main_hits) > 0 and s.extra_hits >= (k - s.main_hits)
+), "placed extras covering remaining picks missed Lumen"
 assert all(
     sum(base_hit_weight(k, h, placed=True) for h in range(k + 1)) == comb(POOL, k)
     for k in range(MIN_PLACED_PICKS, 11)
@@ -1071,6 +1199,11 @@ assert lumen_books_for_hits(0, placed=True, k=5) == [False]
 assert lumen_books_for_hits(1, placed=True, k=5) == [False, True]
 assert lumen_books_for_hits(5, placed=True, k=5) == [True]
 assert lumen_books_for_hits(1, placed=True, k=1) == [True]
+assert lumen_books_for_placed(1, 0, 0) == [False]
+assert lumen_books_for_placed(1, 0, 1) == [True]
+assert lumen_books_for_placed(1, 1, 0) == [True]
+assert lumen_books_for_placed(5, 4, 1) == [True]
+assert lumen_books_for_placed(5, 3, 1) == [False, True]
 # The flag is on for every buy pick size, off on Earn.
 assert not lumen_placed_on_pick(None, 5)
 assert lumen_placed_on_pick("buy10", 1) and lumen_placed_on_pick("buy10", 2)

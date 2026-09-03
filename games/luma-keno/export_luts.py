@@ -71,7 +71,7 @@ def export_mode(
                 base = paytable[spin.total_hits]
                 expected = int(round(settle_pay(base, spin.lumen_hit, spin.pulse, risk, buy) * 100))
                 expect_weight = spin_weight(
-                    k, spin, risk, paying=paying, bought=bought, placed=placed
+                    k, spin, risk, paying=paying, bought=bought, placed=placed, buy=buy
                 )
                 after_lumen = lumen_boost_applied(base, spin.lumen_hit, risk, buy)
             else:

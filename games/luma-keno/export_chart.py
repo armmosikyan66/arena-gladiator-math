@@ -106,7 +106,9 @@ def export_settled(
                 "pulseRolled": bool(spin.pulse),
                 "missBonus": bool(spin.miss_bonus),
                 "weight": int(
-                    spin_weight(k, spin, risk, paying=paying, bought=bought, placed=placed)
+                    spin_weight(
+                        k, spin, risk, paying=paying, bought=bought, placed=placed, buy=buy
+                    )
                 ),
                 "payout": int(
                     round(settle_pay(base, spin.lumen_hit, spin.pulse, risk, buy) * 100)

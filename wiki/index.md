@@ -43,7 +43,7 @@ _Vendor and external docs, summarized — not copied._
 
 - [[codebase/sdk-layout]] — `src/`, `games/`, outputs, what to edit.
 - [[codebase/gladiator-tower]] — Session climb math, modes, publish pipeline.
-- [[codebase/luma-keno]] — Hit-count keno, 160 modes (Off / Earn / buy10 / buy100) at 0.9650 RTP; Pulse ×2 on every risk; buy Lumen is mark-on-pick hit-or-miss (P=0.25), not forced into the ten; buy ceilings capped per cost. Off `low` is the Easy leftover-share copy; Earn `low` is the same HUD zeros leftover-filled on Earn coefficients; Off `classic` / `medium` / `high` are geometric HUD copies.
+- [[codebase/luma-keno]] — Hit-count keno, 160 modes (Off / Earn / buy10 / buy100) at 0.9650 RTP; Pulse ×2 on every risk; buy Lumen is mark-on-pick (ten or extra-cover), not forced into the ten; buy ceilings capped per cost. Off `low` is the Easy leftover-share copy; Earn `low` is the same HUD zeros leftover-filled on Earn coefficients; Off `classic` / `medium` / `high` are geometric HUD copies.
 
 ## Domain
 

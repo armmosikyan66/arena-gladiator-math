@@ -3,10 +3,13 @@
 Buy settlement (all risks):
   • extras forced open (`bought`) on every book
   • every pick size: Lumen *placed* on a pick (`lumen_placed_on_pick`);
-    catch is hit-or-miss (P=0.25, P(hit|h)=h/k). Hit pays BUY_LUMEN_BOOST
+    catch is hit-or-miss on the ten (P=0.25, P(hit|h)=h/k). Extras that
+    cover every remaining pick (pick_1 extra catch) also pay BUY_LUMEN_BOOST.
     (10× / 100×) on a paying row; miss leaves the base. Full card always
     catches. pick_1 is included (not forced into the ten, so STD survives)
-  • Pulse ×2 on 10% of books
+  • Pulse ×2 on extra-open books (10% on picks 2–10; pick_1 uses the Earn
+    per-risk slice except buy100 pick_1, which nudges classic 7% / medium 13%
+    so extra-cover 0.30 catch still has an in-band 0.1× pair)
 
 Advertised rows live in **base-bet / JSON units**. The solve grades them in
 cost units (`json / cost`). Because BUY_LUMEN_BOOST equals the chip cost,

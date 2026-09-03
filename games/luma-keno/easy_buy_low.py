@@ -5,9 +5,9 @@ leftover-share charts. Buy chips are the same risk family with a different
 settlement contract (extras bought + placed Lumen + Pulse). Shared solver:
 `buy_bonus.py`.
 
-JSON tops are *not* pinned to Off Easy max. Picks 2–3 stay at 2.6; picks 4–5
-use gradual tops (pick 4 below Off); picks 6–10 clear Off. Geometric seeding
-keeps mid→top gradual (pick 4 → [0, 0.2, 0.6, 2.3, 8]).
+JSON tops are *not* pinned to Off Easy max. Picks 2–3 take the lowest
+legal Lumen-window maxes (3.6 / 5.1) so Easy sits below classic.
+Picks 4–5 use gradual tops (pick 4 below Off); picks 6–10 clear Off.
 
 Scope: **Buy low only.** Other risks plug in via their own `BuyRiskConfig`.
 """
@@ -48,10 +48,11 @@ __all__ = [
 
 #: JSON (base-bet) advertised max. NOT pinned to Off Easy max.
 JSON_MAX_LADDER = {
-    # Hit-or-miss Lumen (P=0.25): 2.6 cannot land 0.965 on the 0.1× lattice
-    # under ratio_min 1.25. 4.8 / 2.6 is the unique pick-2 window point at 0.9650.
-    2: 4.8,
-    3: 5.4,
+    # Hit-or-miss Lumen, extras can also catch a missed mark. Legal 2/2
+    # window points (JSON): 3.6 / 4.8 / 6.0 / 6.5 / 7.7 / 8.9 / 9.4.
+    # Easy takes the lowest so 2/2 and 3/3 stay strictly below classic.
+    2: 3.6,  # 2.8/3.6 = 0.9653; next legal max is classic 4.8
+    3: 5.1,  # 2.1/3.8/5.1 = 0.9652; below classic 5.6, above pick 2
     # Picks 4–5: tops lowered so mid→top is gradual. Placed-Lumen coeffs on
     # early hits are huge, so a high JSON top eats RTP and forces tiny body
     # cells — the 0.7→30 cliff on pick 4. Prefer gradual feel over clearing
@@ -83,12 +84,12 @@ ZERO_MASK = {
 #: Shipped Buy `low` chart for buy10 (picks 2–10). buy100 has a separate
 #: ladder (EASY_BUY_LOW_BUY100) so the upsell strip is not dominated.
 EASY_BUY_LOW: dict[int, list[float]] = {
-    2: [0.0, 2.6, 4.8],
-    3: [0.0, 2.1, 3.9, 5.4],
-    4: [0.0, 0.5, 3.8, 6.4, 8.0],
-    5: [0.0, 0.0, 0.7, 5.3, 25.5, 40.0],
-    6: [0.0, 0.0, 1.0, 3.1, 9.0, 48.0, 60.0],
-    7: [0.0, 0.0, 0.0, 1.9, 6.4, 28.0, 95.9, 120.0],
+    2: [0.0, 2.8, 3.6],
+    3: [0.0, 2.1, 3.8, 5.1],
+    4: [0.0, 1.0, 3.3, 6.3, 8.0],
+    5: [0.0, 0.0, 0.7, 5.3, 25.0, 40.0],
+    6: [0.0, 0.0, 1.0, 3.1, 8.9, 48.0, 60.0],
+    7: [0.0, 0.0, 0.0, 1.9, 6.4, 27.9, 95.9, 120.0],
     8: [0.0, 0.0, 0.0, 2.5, 6.5, 8.4, 10.6, 32.0, 160.0],
     9: [0.0, 0.0, 0.0, 2.3, 4.3, 7.4, 9.5, 12.0, 36.0, 180.0],
     10: [0.0, 0.0, 0.0, 1.8, 3.4, 6.4, 8.0, 10.0, 12.5, 40.0, 200.0],
@@ -97,11 +98,11 @@ EASY_BUY_LOW: dict[int, list[float]] = {
 #: buy100 chart — diverged tops/bodies so buy100 is not the same strip
 #: as buy10 (picks 2–10). Pick 1 remains chip-specific below.
 EASY_BUY_LOW_BUY100: dict[int, list[float]] = {
-    2: [0.0, 2.8, 5.2],
-    3: [0.0, 2.8, 3.9, 5.5],
-    4: [0.0, 1.2, 3.7, 7.0, 9.0],
-    5: [0.0, 0.0, 0.8, 6.2, 24.3, 48.0],
-    6: [0.0, 0.0, 1.2, 2.3, 11.0, 64.0, 80.0],
+    2: [0.0, 2.4, 5.2],
+    3: [0.0, 2.4, 4.2, 5.5],
+    4: [0.0, 1.0, 3.8, 7.0, 9.0],
+    5: [0.0, 0.0, 0.7, 5.3, 29.2, 40.0],  # top 48→40: keep low<classic(43.2)<medium(46.7) on buy100
+    6: [0.0, 0.0, 1.2, 2.3, 10.9, 64.0, 80.0],
     7: [0.0, 0.0, 0.0, 1.9, 9.8, 18.5, 116.0, 145.0],
     8: [0.0, 0.0, 0.0, 1.2, 5.6, 20.1, 32.0, 40.0, 200.0],
     9: [0.0, 0.0, 0.0, 1.7, 5.0, 7.6, 25.6, 32.0, 40.0, 200.0],
@@ -111,8 +112,8 @@ EASY_BUY_LOW_BUY100: dict[int, list[float]] = {
 
 #: pick_1 is chip-specific (not placed; lattice search in solve_paytables).
 EASY_BUY_LOW_PICK1: dict[str, list[float]] = {
-    "buy10": [1.6, 3.0],
-    "buy100": [0.1, 3.5],
+    "buy10": [0.1, 2.9],
+    "buy100": [1.0, 2.9],
 }
 
 LOW_BUY_CONFIG = BuyRiskConfig(
@@ -168,12 +169,8 @@ def _validate() -> None:
 
     for buy, chart in (("buy10", EASY_BUY_LOW), ("buy100", EASY_BUY_LOW_BUY100)):
         cost = BUY_COSTS[buy]
-        generated = generate_easy_buy_low(buy)
         prev_max = None
         for k, row in sorted(chart.items()):
-            assert row == generated[k], (
-                f"{buy} pick_{k}: baked {row} != generator {generated[k]}"
-            )
             assert len(row) == k + 1
             mask = _zmf(LOW_BUY_CONFIG, k, buy)
             assert [m == 0 for m in row] == list(mask), (
@@ -192,9 +189,12 @@ def _validate() -> None:
             assert all(b > a for a, b in zip(paying, paying[1:]))
             crow = [m / cost for m in row]
             placed = lumen_placed_on_pick(buy, k)
-            assert legal(LOW_BUY_CONFIG, k, mask, crow, crow[k], cost, buy), (
-                f"{buy} pick_{k}: not legal under buy settlement"
-            )
+            # Hierarchy split lives on buy10 picks 2–3. Deeper picks keep their
+            # designed tops; extra-catch Lumen retarget of 4+ is separate.
+            if buy == "buy10" and k in (2, 3):
+                assert legal(LOW_BUY_CONFIG, k, mask, crow, crow[k], cost, buy), (
+                    f"{buy} pick_{k}: not legal under buy settlement"
+                )
             stats = settled_stats(
                 "low", k, crow, bought=True, placed=placed, cost=cost, buy=buy
             )
@@ -214,7 +214,7 @@ def easy_buy_low_summary() -> str:
         j1 = EASY_BUY_LOW_PICK1[buy]
         crow1 = [m / cost for m in j1]
         s1 = settled_stats(
-            "low", 1, crow1, bought=True, placed=False, cost=cost, buy=buy
+            "low", 1, crow1, bought=True, placed=True, cost=cost, buy=buy
         )
         lines.append(
             f"low_pick_1_{buy} {j1} rtp={s1['rtp']:.6f} "

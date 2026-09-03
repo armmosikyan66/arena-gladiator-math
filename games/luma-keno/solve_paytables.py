@@ -1981,8 +1981,9 @@ def buy_chip_contract_gates(
     1. Lumen pays the chip's cost multiple (`BUY_LUMEN_BOOST`), not the Earn ×2
        — priced into the coefficients, so the boost must equal the cost.
     2. Every pick size places the star on a pick (`placed`). Catch is
-       hit-or-miss (P=0.25); a full card always catches. Hit pays the chip
-       boost, miss leaves the base row.
+       hit-or-miss on the ten (P=0.25); extras that cover every remaining
+       pick also catch (pick_1 extra → 0.30). Hit pays the chip boost,
+       miss leaves the base row.
     3. The two extras are what the purchase buys: they open unconditionally
        with reason `bought` on every book.
     """
